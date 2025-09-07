@@ -1,34 +1,228 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+body {
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+  color: #8b5a3c;
+  background-color: #fefcfb;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.App {
+  min-height: 100vh;
 }
 
-.App-link {
-    color: #61dafb;
+/* Custom Color Palette - Mediterranean Premium */
+:root {
+  --sand-50: #fefcfb;
+  --sand-100: #fef7f0;
+  --sand-200: #f9e8d3;
+  --sand-300: #f3d5ae;
+  --sand-600: #b8956d;
+  --sand-700: #8b5a3c;
+  
+  --terracotta-50: #fef6f0;
+  --terracotta-100: #fdeee1;
+  --terracotta-200: #f9d5c0;
+  --terracotta-300: #f4b499;
+  --terracotta-400: #ee8c66;
+  --terracotta-600: #c85a3a;
+  --terracotta-700: #b04832;
+  --terracotta-800: #923c2a;
+  --terracotta-900: #7a3226;
+  
+  --rose-50: #fdf2f8;
+  --rose-100: #fce7f3;
+  --rose-600: #e11d48;
+  --rose-700: #be185d;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+/* Typography */
+.font-serif {
+  font-family: 'Playfair Display', serif;
+}
+
+.font-sans {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Custom utility classes */
+.bg-sand-50 { background-color: var(--sand-50); }
+.bg-sand-100 { background-color: var(--sand-100); }
+.bg-sand-200 { background-color: var(--sand-200); }
+.bg-sand-300 { background-color: var(--sand-300); }
+
+.bg-terracotta-50 { background-color: var(--terracotta-50); }
+.bg-terracotta-100 { background-color: var(--terracotta-100); }
+.bg-terracotta-200 { background-color: var(--terracotta-200); }
+.bg-terracotta-600 { background-color: var(--terracotta-600); }
+.bg-terracotta-700 { background-color: var(--terracotta-700); }
+.bg-terracotta-800 { background-color: var(--terracotta-800); }
+.bg-terracotta-900 { background-color: var(--terracotta-900); }
+
+.text-sand-300 { color: var(--sand-300); }
+.text-sand-600 { color: var(--sand-600); }
+.text-sand-700 { color: var(--sand-700); }
+
+.text-terracotta-600 { color: var(--terracotta-600); }
+.text-terracotta-700 { color: var(--terracotta-700); }
+.text-terracotta-800 { color: var(--terracotta-800); }
+.text-terracotta-900 { color: var(--terracotta-900); }
+
+.text-rose-600 { color: var(--rose-600); }
+.text-rose-700 { color: var(--rose-700); }
+
+.border-sand-200 { border-color: var(--sand-200); }
+.border-terracotta-200 { border-color: var(--terracotta-200); }
+.border-terracotta-300 { border-color: var(--terracotta-300); }
+.border-terracotta-400 { border-color: var(--terracotta-400); }
+
+.hover\:bg-terracotta-50:hover { background-color: var(--terracotta-50); }
+.hover\:bg-terracotta-700:hover { background-color: var(--terracotta-700); }
+
+.hover\:text-terracotta-600:hover { color: var(--terracotta-600); }
+.hover\:text-terracotta-700:hover { color: var(--terracotta-700); }
+.hover\:text-rose-700:hover { color: var(--rose-700); }
+
+.hover\:border-terracotta-400:hover { border-color: var(--terracotta-400); }
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom animations */
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Backdrop blur support */
+.backdrop-blur-md {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--sand-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--terracotta-400);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--terracotta-600);
+}
+
+/* Image hover effects */
+.group:hover .group-hover\:scale-110 {
+  transform: scale(1.1);
+}
+
+.group:hover .group-hover\:scale-105 {
+  transform: scale(1.05);
+}
+
+/* Focus states for accessibility */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--terracotta-600);
+  outline-offset: 2px;
+}
+
+/* Responsive design helpers */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2.5rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.25rem;
+  }
+}
+
+/* Custom gradients */
+.bg-gradient-to-b {
+  background: linear-gradient(to bottom, var(--sand-50), var(--terracotta-50));
+}
+
+.bg-gradient-to-r {
+  background: linear-gradient(to right, rgba(249, 232, 211, 0.5), rgba(253, 238, 225, 0.5));
+}
+
+/* Card shadows */
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(138, 90, 60, 0.1), 0 4px 6px -2px rgba(138, 90, 60, 0.05);
+}
+
+.shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(138, 90, 60, 0.1), 0 10px 10px -5px rgba(138, 90, 60, 0.04);
+}
+
+.hover\:shadow-xl:hover {
+  box-shadow: 0 20px 25px -5px rgba(138, 90, 60, 0.15), 0 10px 10px -5px rgba(138, 90, 60, 0.08);
+}
+
+/* Mix blend mode for hero image */
+.mix-blend-soft-light {
+  mix-blend-mode: soft-light;
+}
+
+/* Button transitions */
+button {
+  transition: all 0.3s ease;
+}
+
+/* Form inputs */
+input, textarea, select {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Navigation sticky behavior */
+.sticky {
+  position: -webkit-sticky;
+  position: sticky;
+}
+
+/* Aspect ratio utilities */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+/* Loading state */
+.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }
