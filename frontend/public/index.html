@@ -1,24 +1,51 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="fr">
     <head>
         <meta charset="utf-8" />
+        <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#000000" />
-        <meta name="description" content="A product of emergent.sh" />
-        <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-        <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-        <title>Emergent | Fullstack App</title>
+        <meta name="theme-color" content="#8b6538" />
+        
+        <!-- SEO Meta Tags -->
+        <meta name="description" content="LZ Loop - Sacs premium faits main à Marseille. Collection unique de sacs tissés artisanalement avec charmes. Livraison France, Europe, International." />
+        <meta name="keywords" content="sacs faits main, sacs artisanaux, Marseille, sacs premium, sacs tissés, maroquinerie artisanale, LZ Loop, sacs uniques, charmes bijoux" />
+        <meta name="author" content="LZ Loop" />
+        <meta name="robots" content="index, follow" />
+        
+        <!-- Open Graph Tags -->
+        <meta property="og:title" content="LZ Loop - Sacs Premium Faits Main à Marseille" />
+        <meta property="og:description" content="Des sacs uniques, tissés à la main avec élégance et authenticité. Collection premium de maroquinerie artisanale." />
+        <meta property="og:type" content="website" />
+        <meta property="og:locale" content="fr_FR" />
+        
+        <!-- Twitter Cards -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="LZ Loop - Sacs Premium Faits Main" />
+        <meta name="twitter:description" content="Collection unique de sacs artisanaux tissés à la main à Marseille." />
+        
+        <!-- Structured Data for Google -->
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "Store",
+          "name": "LZ Loop",
+          "description": "Sacs premium faits main à Marseille",
+          "url": "https://lzloop.com",
+          "telephone": "+33-XXX-XXX-XXX",
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Marseille",
+            "addressCountry": "FR"
+          },
+          "openingHours": "Mo-Su 00:00-23:59",
+          "paymentAccepted": "Credit Card, Bank Transfer",
+          "priceRange": "35€-40€"
+        }
+        </script>
+        
+        <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+        <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+        <title>LZ Loop - Sacs Premium Faits Main à Marseille | Maroquinerie Artisanale</title>
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
