@@ -126,6 +126,8 @@ def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         if payload.get("admin") != True:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin token")
         return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired, please login again")
     except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin token")
 
