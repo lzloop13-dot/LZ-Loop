@@ -29,7 +29,13 @@ import {
   Plus,
   Minus,
   X,
-  Gem
+  Gem,
+  Settings,
+  LogIn,
+  LogOut,
+  Edit,
+  Trash2,
+  Package
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -40,11 +46,16 @@ function App() {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminToken, setAdminToken] = useState(localStorage.getItem('admin_token'));
 
   useEffect(() => {
     fetchProducts();
     fetchCart();
-  }, []);
+    if (adminToken) {
+      setIsAdmin(true);
+    }
+  }, [adminToken]);
 
   const fetchProducts = async () => {
     try {
@@ -73,8 +84,7 @@ function App() {
         with_charm: withCharm
       });
       await fetchCart();
-      const charmText = withCharm ? " avec charme" : "";
-      toast.success(`Produit ajouté au panier${charmText} !`);
+      toast.success("Produit ajouté au panier");
     } catch (error) {
       toast.error("Erreur lors de l'ajout au panier");
     } finally {
@@ -115,7 +125,7 @@ function App() {
       await axios.post(`${API}/orders`, orderData);
       await fetchCart();
       setIsCartOpen(false);
-      toast.success("Commande confirmée ! Vous recevrez un email de confirmation.");
+      toast.success("Commande confirmée. Vous recevrez un email de confirmation.");
     } catch (error) {
       toast.error("Erreur lors de la commande");
     } finally {
@@ -127,12 +137,32 @@ function App() {
     try {
       setLoading(true);
       await axios.post(`${API}/contact`, formData);
-      toast.success("Message envoyé ! Nous vous répondrons rapidement.");
+      toast.success("Message envoyé. Nous vous répondrons rapidement.");
     } catch (error) {
       toast.error("Erreur lors de l'envoi du message");
     } finally {
       setLoading(false);
     }
+  };
+
+  const adminLogin = async (password) => {
+    try {
+      const response = await axios.post(`${API}/admin/login`, { password });
+      const token = response.data.access_token;
+      localStorage.setItem('admin_token', token);
+      setAdminToken(token);
+      setIsAdmin(true);
+      toast.success("Connexion administrateur réussie");
+    } catch (error) {
+      toast.error("Mot de passe incorrect");
+    }
+  };
+
+  const adminLogout = () => {
+    localStorage.removeItem('admin_token');
+    setAdminToken(null);
+    setIsAdmin(false);
+    toast.success("Déconnexion réussie");
   };
 
   return (
@@ -152,6 +182,11 @@ function App() {
               submitOrder={submitOrder}
               submitContact={submitContact}
               loading={loading}
+              isAdmin={isAdmin}
+              adminLogin={adminLogin}
+              adminLogout={adminLogout}
+              fetchProducts={fetchProducts}
+              adminToken={adminToken}
             />
           } />
         </Routes>
@@ -160,6 +195,249 @@ function App() {
     </div>
   );
 }
+
+const AdminPanel = ({ products, fetchProducts, adminToken }) => {
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [productForm, setProductForm] = useState({
+    name: '',
+    description: '',
+    price: '',
+    image_url: '',
+    category: 'sac'
+  });
+
+  const handleUpdateProduct = async (productId) => {
+    try {
+      const updateData = {};
+      Object.keys(productForm).forEach(key => {
+        if (productForm[key] && productForm[key] !== '') {
+          updateData[key] = key === 'price' ? parseFloat(productForm[key]) : productForm[key];
+        }
+      });
+
+      await axios.put(`${BACKEND_URL}/api/admin/products/${productId}`, updateData, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+
+      toast.success("Produit mis à jour");
+      setEditingProduct(null);
+      setProductForm({ name: '', description: '', price: '', image_url: '', category: 'sac' });
+      fetchProducts();
+    } catch (error) {
+      toast.error("Erreur lors de la mise à jour");
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce produit ?")) {
+      try {
+        await axios.delete(`${BACKEND_URL}/api/admin/products/${productId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` }
+        });
+        toast.success("Produit supprimé");
+        fetchProducts();
+      } catch (error) {
+        toast.error("Erreur lors de la suppression");
+      }
+    }
+  };
+
+  const handleCreateProduct = async () => {
+    try {
+      const productData = {
+        ...productForm,
+        price: parseFloat(productForm.price)
+      };
+
+      await axios.post(`${BACKEND_URL}/api/admin/products`, productData, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+
+      toast.success("Produit créé");
+      setProductForm({ name: '', description: '', price: '', image_url: '', category: 'sac' });
+      fetchProducts();
+    } catch (error) {
+      toast.error("Erreur lors de la création");
+    }
+  };
+
+  return (
+    <div className="admin-panel p-8 bg-beige-50 min-h-screen">
+      <div className="max-w-6xl mx-auto">
+        <h2 className="text-3xl font-serif font-bold text-brown-900 mb-8">Administration LZ Loop</h2>
+        
+        {/* Create Product Form */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-brown-900">Ajouter un nouveau produit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Nom du produit</Label>
+                <Input 
+                  value={productForm.name}
+                  onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>Prix</Label>
+                <Input 
+                  type="number"
+                  value={productForm.price}
+                  onChange={(e) => setProductForm({...productForm, price: e.target.value})}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label>Description</Label>
+                <Textarea 
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>URL de l'image</Label>
+                <Input 
+                  value={productForm.image_url}
+                  onChange={(e) => setProductForm({...productForm, image_url: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>Catégorie</Label>
+                <Select value={productForm.category} onValueChange={(value) => setProductForm({...productForm, category: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sac">Sac</SelectItem>
+                    <SelectItem value="pochette">Pochette</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleCreateProduct} className="mt-4 bg-brown-600 hover:bg-brown-700">
+              Créer le produit
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Products List */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => (
+            <Card key={product.id} className="border-brown-200">
+              <div className="aspect-square overflow-hidden rounded-t-lg">
+                <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+              </div>
+              <CardContent className="p-4">
+                {editingProduct === product.id ? (
+                  <div className="space-y-3">
+                    <Input 
+                      placeholder="Nom"
+                      value={productForm.name}
+                      onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                    />
+                    <Input 
+                      placeholder="Prix"
+                      type="number"
+                      value={productForm.price}
+                      onChange={(e) => setProductForm({...productForm, price: e.target.value})}
+                    />
+                    <Textarea 
+                      placeholder="Description"
+                      value={productForm.description}
+                      onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                    />
+                    <div className="flex space-x-2">
+                      <Button size="sm" onClick={() => handleUpdateProduct(product.id)} className="bg-green-600 hover:bg-green-700">
+                        Sauvegarder
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingProduct(null)}>
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="font-serif font-bold text-brown-900">{product.name}</h3>
+                    <p className="text-sand-600 text-sm mb-2">{product.description}</p>
+                    <p className="text-brown-600 font-bold">{product.price}€</p>
+                    <div className="flex space-x-2 mt-3">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => {
+                          setEditingProduct(product.id);
+                          setProductForm({
+                            name: product.name,
+                            description: product.description,
+                            price: product.price.toString(),
+                            image_url: product.image_url,
+                            category: product.category
+                          });
+                        }}
+                        className="border-brown-300 text-brown-700"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleDeleteProduct(product.id)}
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminLogin = ({ adminLogin }) => {
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    adminLogin(password);
+  };
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-brown-700">
+          <Settings className="w-4 h-4 mr-2" />
+          Admin
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="text-brown-900">Connexion Administrateur</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="password">Mot de passe</Label>
+            <Input 
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full bg-brown-600 hover:bg-brown-700">
+            Se connecter
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const LZLoopWebsite = ({ 
   products, 
@@ -172,8 +450,14 @@ const LZLoopWebsite = ({
   getCartCount, 
   submitOrder, 
   submitContact, 
-  loading 
+  loading,
+  isAdmin,
+  adminLogin,
+  adminLogout,
+  fetchProducts,
+  adminToken
 }) => {
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [orderFormData, setOrderFormData] = useState({
     firstName: '',
     lastName: '',
@@ -227,11 +511,9 @@ const LZLoopWebsite = ({
           />
         </div>
         <CardContent className="p-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h3 className="font-serif font-bold text-brown-900 text-xl">{product.name}</h3>
-              <p className="text-sand-600 mt-2">{product.description}</p>
-            </div>
+          <div className="mb-4">
+            <h3 className="font-serif font-bold text-brown-900 text-xl mb-2">{product.name}</h3>
+            <p className="text-sand-600 leading-relaxed">{product.description}</p>
           </div>
           
           {isShop && (
@@ -252,7 +534,7 @@ const LZLoopWebsite = ({
           
           <div className="flex justify-between items-center">
             <div className="flex flex-col">
-              <span className="text-3xl font-bold text-brown-600">{totalPrice}€</span>
+              <span className="text-2xl font-bold text-brown-600">{totalPrice}€</span>
               {withCharm && isShop && (
                 <span className="text-sm text-sand-600">
                   {product.price}€ + 2€ charme
@@ -263,7 +545,7 @@ const LZLoopWebsite = ({
               <Button 
                 onClick={() => addToCart(product.id, withCharm)}
                 disabled={loading}
-                className="bg-brown-600 hover:bg-brown-700 text-white rounded-full px-6"
+                className="bg-brown-600 hover:bg-brown-700 text-white px-6 py-2"
               >
                 <ShoppingCart className="w-4 h-4 mr-2" />
                 Ajouter au panier
@@ -272,7 +554,7 @@ const LZLoopWebsite = ({
               <Button 
                 size="sm"
                 onClick={() => scrollToSection('shop')}
-                className="bg-brown-600 hover:bg-brown-700 text-white rounded-full"
+                className="bg-brown-600 hover:bg-brown-700 text-white"
               >
                 Voir le produit
               </Button>
@@ -283,48 +565,73 @@ const LZLoopWebsite = ({
     );
   };
 
+  if (showAdminPanel && isAdmin) {
+    return <AdminPanel products={products} fetchProducts={fetchProducts} adminToken={adminToken} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-beige-50 to-sand-50">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-beige-200 shadow-sm">
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-beige-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
               <div className="text-2xl font-serif font-bold text-brown-800">LZ Loop</div>
-              <div className="hidden md:flex space-x-6">
-                <button onClick={() => scrollToSection('home')} className="text-sand-700 hover:text-brown-600 transition-colors">Accueil</button>
-                <button onClick={() => scrollToSection('about')} className="text-sand-700 hover:text-brown-600 transition-colors">À propos</button>
-                <button onClick={() => scrollToSection('collection')} className="text-sand-700 hover:text-brown-600 transition-colors">Collection</button>
-                <button onClick={() => scrollToSection('shop')} className="text-sand-700 hover:text-brown-600 transition-colors">Boutique</button>
-                <button onClick={() => scrollToSection('contact')} className="text-sand-700 hover:text-brown-600 transition-colors">Contact</button>
+              <div className="hidden md:flex space-x-8">
+                <button onClick={() => scrollToSection('home')} className="text-sand-700 hover:text-brown-600 transition-colors font-medium">Accueil</button>
+                <button onClick={() => scrollToSection('about')} className="text-sand-700 hover:text-brown-600 transition-colors font-medium">À propos</button>
+                <button onClick={() => scrollToSection('collection')} className="text-sand-700 hover:text-brown-600 transition-colors font-medium">Collection</button>
+                <button onClick={() => scrollToSection('shop')} className="text-sand-700 hover:text-brown-600 transition-colors font-medium">Boutique</button>
+                <button onClick={() => scrollToSection('contact')} className="text-sand-700 hover:text-brown-600 transition-colors font-medium">Contact</button>
               </div>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setIsCartOpen(true)}
-              className="relative border-brown-300 text-brown-700 hover:bg-beige-50"
-            >
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Panier
-              {getCartCount() > 0 && (
-                <Badge className="absolute -top-2 -right-2 bg-brown-600 text-white">
-                  {getCartCount()}
-                </Badge>
+            <div className="flex items-center space-x-4">
+              {isAdmin ? (
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setShowAdminPanel(true)}
+                    className="text-brown-700"
+                  >
+                    <Package className="w-4 h-4 mr-2" />
+                    Gérer les produits
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={adminLogout}
+                    className="text-brown-700"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Déconnexion
+                  </Button>
+                </div>
+              ) : (
+                <AdminLogin adminLogin={adminLogin} />
               )}
-            </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setIsCartOpen(true)}
+                className="relative border-brown-300 text-brown-700 hover:bg-beige-50"
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Panier
+                {getCartCount() > 0 && (
+                  <Badge className="absolute -top-2 -right-2 bg-brown-600 text-white">
+                    {getCartCount()}
+                  </Badge>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
       <section id="home" className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-beige-100/50 to-sand-100/50"></div>
-        <img 
-          src="https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/t31kn3kv_IMG_8196.PNG"
-          alt="LZ Loop Logo"
-          className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light"
-        />
+        <div className="absolute inset-0 bg-gradient-to-r from-beige-100/60 to-sand-100/60"></div>
         <div className="relative z-10 text-center max-w-4xl mx-auto px-4">
           <h1 className="text-5xl md:text-7xl font-serif font-bold text-brown-900 mb-6 leading-tight">
             LZ Loop
@@ -332,13 +639,13 @@ const LZLoopWebsite = ({
           <p className="text-xl md:text-2xl text-brown-800 mb-4 font-light">
             L'art du sac premium, fait main à Marseille
           </p>
-          <p className="text-lg text-sand-700 mb-8 max-w-2xl mx-auto">
+          <p className="text-lg text-sand-700 mb-8 max-w-2xl mx-auto leading-relaxed">
             Des sacs uniques, tissés à la main avec élégance et authenticité
           </p>
           <Button 
             size="lg"
             onClick={() => scrollToSection('collection')}
-            className="bg-brown-600 hover:bg-brown-700 text-white px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+            className="bg-brown-600 hover:bg-brown-700 text-white px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300"
           >
             Découvrir la collection
           </Button>
@@ -348,7 +655,7 @@ const LZLoopWebsite = ({
       {/* À propos Section */}
       <section id="about" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
               <h2 className="text-4xl font-serif font-bold text-brown-900 mb-6">Notre Histoire</h2>
               <p className="text-lg text-sand-700 mb-6 leading-relaxed">
@@ -359,18 +666,18 @@ const LZLoopWebsite = ({
                 Notre savoir-faire allie l'élégance moderne aux techniques ancestrales, dans le respect de l'environnement 
                 et des artisans locaux. Inspirés par le soleil de la Méditerranée et l'esprit créatif de Marseille.
               </p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-brown-600">100%</div>
+                  <div className="text-3xl font-bold text-brown-600 mb-2">100%</div>
                   <div className="text-sand-600">Fait main</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-brown-600">♻️</div>
-                  <div className="text-sand-600">Durable</div>
+                  <div className="text-3xl font-bold text-brown-600 mb-2">Durable</div>
+                  <div className="text-sand-600">Éco-responsable</div>
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-6">
               <div className="bg-beige-100 rounded-lg p-8 text-center">
                 <Heart className="w-12 h-12 text-brown-600 mx-auto mb-4" />
                 <h3 className="font-serif font-bold text-brown-900 mb-2">Artisanal</h3>
@@ -383,40 +690,16 @@ const LZLoopWebsite = ({
               </div>
               <div className="bg-sand-100 rounded-lg p-8 text-center -mt-8">
                 <Shield className="w-12 h-12 text-brown-600 mx-auto mb-4" />
-                <h3 className="font-serif font-bold text-brown-900 mb-2">Durable</h3>
-                <p className="text-sand-600 text-sm">Matériaux éco-responsables</p>
+                <h3 className="font-serif font-bold text-brown-900 mb-2">Qualité</h3>
+                <p className="text-sand-600 text-sm">Matériaux premium</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Valeurs Section */}
-      <section className="py-20 bg-beige-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-serif font-bold text-center text-brown-900 mb-12">Nos Valeurs</h2>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
-            {[
-              { icon: <Shield className="w-12 h-12" />, title: "Durable", desc: "Matériaux éco-responsables" },
-              { icon: <Heart className="w-12 h-12" />, title: "Éthique", desc: "Commerce équitable" },
-              { icon: <Sparkles className="w-12 h-12" />, title: "Fait main", desc: "Artisanat traditionnel" },
-              { icon: <Star className="w-12 h-12" />, title: "Élégant", desc: "Design raffiné" },
-              { icon: <MapPin className="w-12 h-12" />, title: "Marseille", desc: "Esprit méditerranéen" }
-            ].map((value, index) => (
-              <Card key={index} className="text-center border-none shadow-lg hover:shadow-xl transition-shadow bg-white">
-                <CardContent className="pt-6">
-                  <div className="text-brown-600 mb-4 flex justify-center">{value.icon}</div>
-                  <h3 className="font-serif font-bold text-brown-900 mb-2">{value.title}</h3>
-                  <p className="text-sand-600 text-sm">{value.desc}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Collection Section */}
-      <section id="collection" className="py-20 bg-white">
+      <section id="collection" className="py-20 bg-beige-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-serif font-bold text-center text-brown-900 mb-12">Notre Collection</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -427,7 +710,7 @@ const LZLoopWebsite = ({
           <div className="text-center mt-12">
             <Button 
               onClick={() => scrollToSection('shop')}
-              className="bg-brown-600 hover:bg-brown-700 text-white px-8 py-3 rounded-full"
+              className="bg-brown-600 hover:bg-brown-700 text-white px-8 py-3"
             >
               Voir toute la collection
             </Button>
@@ -436,7 +719,7 @@ const LZLoopWebsite = ({
       </section>
 
       {/* Shop Section */}
-      <section id="shop" className="py-20 bg-beige-50">
+      <section id="shop" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-serif font-bold text-center text-brown-900 mb-12">Boutique</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -448,7 +731,7 @@ const LZLoopWebsite = ({
       </section>
 
       {/* Livraison Section */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-beige-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl font-serif font-bold text-brown-900 mb-8">Livraison</h2>
           <p className="text-lg text-sand-700 mb-12 max-w-2xl mx-auto">
@@ -456,13 +739,13 @@ const LZLoopWebsite = ({
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { zone: "France", price: "5€", free: "Gratuit dès 80€", icon: "🇫🇷" },
-              { zone: "Europe", price: "12€", free: "", icon: "🇪🇺" },
-              { zone: "International", price: "20€", free: "", icon: "🌍" }
+              { zone: "France", price: "5€", free: "Gratuit dès 80€" },
+              { zone: "Europe", price: "12€", free: "" },
+              { zone: "International", price: "20€", free: "" }
             ].map((shipping, index) => (
               <Card key={index} className="border-2 border-brown-200 hover:border-brown-400 transition-colors bg-white">
                 <CardContent className="p-6 text-center">
-                  <div className="text-4xl mb-4">{shipping.icon}</div>
+                  <Truck className="w-12 h-12 text-brown-600 mx-auto mb-4" />
                   <h3 className="font-serif font-bold text-brown-900 text-xl mb-2">{shipping.zone}</h3>
                   <div className="text-2xl font-bold text-brown-600 mb-2">{shipping.price}</div>
                   {shipping.free && (
@@ -476,7 +759,7 @@ const LZLoopWebsite = ({
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-20 bg-beige-50">
+      <section id="contact" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-serif font-bold text-center text-brown-900 mb-12">Contact</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -560,10 +843,10 @@ const LZLoopWebsite = ({
       </section>
 
       {/* Footer */}
-      <footer className="bg-brown-900 text-white py-8">
+      <footer className="bg-brown-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-lg font-serif">Fait main avec amour à Marseille</p>
-          <p className="text-sand-300 mt-2">© 2024 LZ Loop. Tous droits réservés.</p>
+          <p className="text-lg font-serif mb-2">Fait main avec amour à Marseille</p>
+          <p className="text-beige-300">© 2024 LZ Loop. Tous droits réservés.</p>
         </div>
       </footer>
 
@@ -721,7 +1004,7 @@ const LZLoopWebsite = ({
                       <span>{(getCartTotal() + getShippingCost(orderFormData.shippingZone, getCartTotal())).toFixed(2)}€</span>
                     </div>
                     {orderFormData.shippingZone === 'France' && getCartTotal() >= 80 && (
-                      <p className="text-sm text-rose-600">🎉 Livraison gratuite !</p>
+                      <p className="text-sm text-rose-600">Livraison gratuite</p>
                     )}
                   </div>
                   
