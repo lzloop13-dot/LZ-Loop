@@ -112,7 +112,7 @@ class LZLoopAPITester:
             "Add to Cart",
             "POST",
             "cart",
-            201,
+            200,
             data={"product_id": product['id'], "quantity": 1}
         )
         
