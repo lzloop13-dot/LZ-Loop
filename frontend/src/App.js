@@ -11,6 +11,7 @@ import { Textarea } from "./components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/dialog";
 import { Separator } from "./components/ui/separator";
+import { Checkbox } from "./components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "./components/ui/sonner";
 import { 
@@ -27,7 +28,8 @@ import {
   MessageCircle,
   Plus,
   Minus,
-  X
+  X,
+  Gem
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -62,12 +64,17 @@ function App() {
     }
   };
 
-  const addToCart = async (productId) => {
+  const addToCart = async (productId, withCharm = false) => {
     try {
       setLoading(true);
-      await axios.post(`${API}/cart`, { product_id: productId, quantity: 1 });
+      await axios.post(`${API}/cart`, { 
+        product_id: productId, 
+        quantity: 1,
+        with_charm: withCharm
+      });
       await fetchCart();
-      toast.success("Produit ajouté au panier !");
+      const charmText = withCharm ? " avec charme" : "";
+      toast.success(`Produit ajouté au panier${charmText} !`);
     } catch (error) {
       toast.error("Erreur lors de l'ajout au panier");
     } finally {
@@ -86,7 +93,7 @@ function App() {
   };
 
   const getCartTotal = () => {
-    return cart.reduce((total, item) => total + (item.product_price * item.quantity), 0);
+    return cart.reduce((total, item) => total + item.total_price, 0);
   };
 
   const getCartCount = () => {
@@ -206,32 +213,102 @@ const LZLoopWebsite = ({
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const ProductCard = ({ product, isShop = false }) => {
+    const [withCharm, setWithCharm] = useState(false);
+    const totalPrice = product.price + (withCharm ? 2 : 0);
+
+    return (
+      <Card className={`group cursor-pointer border-none shadow-lg hover:shadow-xl transition-all duration-300 ${isShop ? '' : 'transform hover:scale-105'} bg-white`}>
+        <div className="aspect-square overflow-hidden rounded-t-lg">
+          <img 
+            src={product.image_url} 
+            alt={product.name}
+            className={`w-full h-full object-cover ${isShop ? 'hover:scale-105' : 'group-hover:scale-110'} transition-transform duration-500`}
+          />
+        </div>
+        <CardContent className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h3 className="font-serif font-bold text-brown-900 text-xl">{product.name}</h3>
+              <p className="text-sand-600 mt-2">{product.description}</p>
+            </div>
+          </div>
+          
+          {isShop && (
+            <div className="mb-4 p-3 bg-beige-50 rounded-lg border border-beige-200">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id={`charm-${product.id}`}
+                  checked={withCharm}
+                  onCheckedChange={setWithCharm}
+                />
+                <Label htmlFor={`charm-${product.id}`} className="flex items-center text-sm text-brown-700">
+                  <Gem className="w-4 h-4 mr-1" />
+                  Ajouter un charme (+2€)
+                </Label>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex justify-between items-center">
+            <div className="flex flex-col">
+              <span className="text-3xl font-bold text-brown-600">{totalPrice}€</span>
+              {withCharm && isShop && (
+                <span className="text-sm text-sand-600">
+                  {product.price}€ + 2€ charme
+                </span>
+              )}
+            </div>
+            {isShop ? (
+              <Button 
+                onClick={() => addToCart(product.id, withCharm)}
+                disabled={loading}
+                className="bg-brown-600 hover:bg-brown-700 text-white rounded-full px-6"
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Ajouter au panier
+              </Button>
+            ) : (
+              <Button 
+                size="sm"
+                onClick={() => scrollToSection('shop')}
+                className="bg-brown-600 hover:bg-brown-700 text-white rounded-full"
+              >
+                Voir le produit
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sand-50 to-terracotta-50">
+    <div className="min-h-screen bg-gradient-to-b from-beige-50 to-sand-50">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-sand-200 shadow-sm">
+      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-beige-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
-              <div className="text-2xl font-serif font-bold text-terracotta-800">LZ Loop</div>
+              <div className="text-2xl font-serif font-bold text-brown-800">LZ Loop</div>
               <div className="hidden md:flex space-x-6">
-                <button onClick={() => scrollToSection('home')} className="text-sand-700 hover:text-terracotta-600 transition-colors">Accueil</button>
-                <button onClick={() => scrollToSection('about')} className="text-sand-700 hover:text-terracotta-600 transition-colors">À propos</button>
-                <button onClick={() => scrollToSection('collection')} className="text-sand-700 hover:text-terracotta-600 transition-colors">Collection</button>
-                <button onClick={() => scrollToSection('shop')} className="text-sand-700 hover:text-terracotta-600 transition-colors">Boutique</button>
-                <button onClick={() => scrollToSection('contact')} className="text-sand-700 hover:text-terracotta-600 transition-colors">Contact</button>
+                <button onClick={() => scrollToSection('home')} className="text-sand-700 hover:text-brown-600 transition-colors">Accueil</button>
+                <button onClick={() => scrollToSection('about')} className="text-sand-700 hover:text-brown-600 transition-colors">À propos</button>
+                <button onClick={() => scrollToSection('collection')} className="text-sand-700 hover:text-brown-600 transition-colors">Collection</button>
+                <button onClick={() => scrollToSection('shop')} className="text-sand-700 hover:text-brown-600 transition-colors">Boutique</button>
+                <button onClick={() => scrollToSection('contact')} className="text-sand-700 hover:text-brown-600 transition-colors">Contact</button>
               </div>
             </div>
             <Button 
               variant="outline" 
               size="sm"
               onClick={() => setIsCartOpen(true)}
-              className="relative border-terracotta-300 text-terracotta-700 hover:bg-terracotta-50"
+              className="relative border-brown-300 text-brown-700 hover:bg-beige-50"
             >
               <ShoppingCart className="w-4 h-4 mr-2" />
               Panier
               {getCartCount() > 0 && (
-                <Badge className="absolute -top-2 -right-2 bg-terracotta-600 text-white">
+                <Badge className="absolute -top-2 -right-2 bg-brown-600 text-white">
                   {getCartCount()}
                 </Badge>
               )}
@@ -242,17 +319,17 @@ const LZLoopWebsite = ({
 
       {/* Hero Section */}
       <section id="home" className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-sand-100/50 to-terracotta-100/50"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-beige-100/50 to-sand-100/50"></div>
         <img 
           src="https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/t31kn3kv_IMG_8196.PNG"
           alt="LZ Loop Logo"
           className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light"
         />
         <div className="relative z-10 text-center max-w-4xl mx-auto px-4">
-          <h1 className="text-5xl md:text-7xl font-serif font-bold text-terracotta-900 mb-6 leading-tight">
+          <h1 className="text-5xl md:text-7xl font-serif font-bold text-brown-900 mb-6 leading-tight">
             LZ Loop
           </h1>
-          <p className="text-xl md:text-2xl text-terracotta-800 mb-4 font-light">
+          <p className="text-xl md:text-2xl text-brown-800 mb-4 font-light">
             L'art du sac premium, fait main à Marseille
           </p>
           <p className="text-lg text-sand-700 mb-8 max-w-2xl mx-auto">
@@ -261,7 +338,7 @@ const LZLoopWebsite = ({
           <Button 
             size="lg"
             onClick={() => scrollToSection('collection')}
-            className="bg-terracotta-600 hover:bg-terracotta-700 text-white px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+            className="bg-brown-600 hover:bg-brown-700 text-white px-8 py-3 rounded-full text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
             Découvrir la collection
           </Button>
@@ -273,7 +350,7 @@ const LZLoopWebsite = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-4xl font-serif font-bold text-terracotta-900 mb-6">Notre Histoire</h2>
+              <h2 className="text-4xl font-serif font-bold text-brown-900 mb-6">Notre Histoire</h2>
               <p className="text-lg text-sand-700 mb-6 leading-relaxed">
                 Née à Marseille, LZ Loop puise son inspiration dans la beauté méditerranéenne et l'art du tissage traditionnel. 
                 Chaque sac est une œuvre unique, créée à la main avec des matériaux durables et éthiques.
@@ -284,40 +361,40 @@ const LZLoopWebsite = ({
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-terracotta-600">100%</div>
+                  <div className="text-3xl font-bold text-brown-600">100%</div>
                   <div className="text-sand-600">Fait main</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-terracotta-600">♻️</div>
+                  <div className="text-3xl font-bold text-brown-600">♻️</div>
                   <div className="text-sand-600">Durable</div>
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <img 
-                src="https://images.unsplash.com/photo-1719667505215-64670dcc8732?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwyfHxtZWRpdGVycmFuZWFuJTIwbGlmZXN0eWxlfGVufDB8fHx8MTc1NzIzMjM2Mnww&ixlib=rb-4.1.0&q=85"
-                alt="Mediterranean lifestyle"
-                className="rounded-lg shadow-lg"
-              />
-              <img 
-                src="https://images.unsplash.com/photo-1566838217578-1903568a76d9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxtYXJzZWlsbGV8ZW58MHx8fHwxNzU3MjMyMzY3fDA&ixlib=rb-4.1.0&q=85"
-                alt="Marseille harbor"
-                className="rounded-lg shadow-lg mt-8"
-              />
-              <img 
-                src="https://images.unsplash.com/photo-1584184924103-e310d9dc82fc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHwyfHxhcnRpc2FufGVufDB8fHx8MTc1NzIzMjM3Mnww&ixlib=rb-4.1.0&q=85"
-                alt="Artisan work"
-                className="rounded-lg shadow-lg -mt-8"
-              />
+              <div className="bg-beige-100 rounded-lg p-8 text-center">
+                <Heart className="w-12 h-12 text-brown-600 mx-auto mb-4" />
+                <h3 className="font-serif font-bold text-brown-900 mb-2">Artisanal</h3>
+                <p className="text-sand-600 text-sm">Fait main à Marseille</p>
+              </div>
+              <div className="bg-sand-100 rounded-lg p-8 text-center mt-8">
+                <Sparkles className="w-12 h-12 text-brown-600 mx-auto mb-4" />
+                <h3 className="font-serif font-bold text-brown-900 mb-2">Unique</h3>
+                <p className="text-sand-600 text-sm">Chaque pièce est exclusive</p>
+              </div>
+              <div className="bg-sand-100 rounded-lg p-8 text-center -mt-8">
+                <Shield className="w-12 h-12 text-brown-600 mx-auto mb-4" />
+                <h3 className="font-serif font-bold text-brown-900 mb-2">Durable</h3>
+                <p className="text-sand-600 text-sm">Matériaux éco-responsables</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Valeurs Section */}
-      <section className="py-20 bg-sand-50">
+      <section className="py-20 bg-beige-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-serif font-bold text-center text-terracotta-900 mb-12">Nos Valeurs</h2>
+          <h2 className="text-4xl font-serif font-bold text-center text-brown-900 mb-12">Nos Valeurs</h2>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
             {[
               { icon: <Shield className="w-12 h-12" />, title: "Durable", desc: "Matériaux éco-responsables" },
@@ -328,8 +405,8 @@ const LZLoopWebsite = ({
             ].map((value, index) => (
               <Card key={index} className="text-center border-none shadow-lg hover:shadow-xl transition-shadow bg-white">
                 <CardContent className="pt-6">
-                  <div className="text-terracotta-600 mb-4 flex justify-center">{value.icon}</div>
-                  <h3 className="font-serif font-bold text-terracotta-900 mb-2">{value.title}</h3>
+                  <div className="text-brown-600 mb-4 flex justify-center">{value.icon}</div>
+                  <h3 className="font-serif font-bold text-brown-900 mb-2">{value.title}</h3>
                   <p className="text-sand-600 text-sm">{value.desc}</p>
                 </CardContent>
               </Card>
@@ -341,71 +418,30 @@ const LZLoopWebsite = ({
       {/* Collection Section */}
       <section id="collection" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-serif font-bold text-center text-terracotta-900 mb-12">Notre Collection</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {products.map((product) => (
-              <Card key={product.id} className="group cursor-pointer border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 bg-white">
-                <div className="aspect-square overflow-hidden rounded-t-lg">
-                  <img 
-                    src={product.image_url} 
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
-                </div>
-                <CardContent className="p-6">
-                  <h3 className="font-serif font-bold text-terracotta-900 mb-2">{product.name}</h3>
-                  <p className="text-sand-600 text-sm mb-4">{product.description}</p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-2xl font-bold text-terracotta-600">{product.price}€</span>
-                    <Button 
-                      size="sm"
-                      onClick={() => scrollToSection('shop')}
-                      className="bg-terracotta-600 hover:bg-terracotta-700 text-white rounded-full"
-                    >
-                      Voir le produit
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+          <h2 className="text-4xl font-serif font-bold text-center text-brown-900 mb-12">Notre Collection</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {products.slice(0, 6).map((product) => (
+              <ProductCard key={product.id} product={product} />
             ))}
+          </div>
+          <div className="text-center mt-12">
+            <Button 
+              onClick={() => scrollToSection('shop')}
+              className="bg-brown-600 hover:bg-brown-700 text-white px-8 py-3 rounded-full"
+            >
+              Voir toute la collection
+            </Button>
           </div>
         </div>
       </section>
 
       {/* Shop Section */}
-      <section id="shop" className="py-20 bg-sand-50">
+      <section id="shop" className="py-20 bg-beige-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-serif font-bold text-center text-terracotta-900 mb-12">Boutique</h2>
+          <h2 className="text-4xl font-serif font-bold text-center text-brown-900 mb-12">Boutique</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {products.map((product) => (
-              <Card key={product.id} className="border-none shadow-lg hover:shadow-xl transition-all duration-300 bg-white">
-                <div className="aspect-square overflow-hidden rounded-t-lg">
-                  <img 
-                    src={product.image_url} 
-                    alt={product.name}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="font-serif font-bold text-terracotta-900 text-xl">{product.name}</h3>
-                      <p className="text-sand-600 mt-2">{product.description}</p>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-3xl font-bold text-terracotta-600">{product.price}€</span>
-                    <Button 
-                      onClick={() => addToCart(product.id)}
-                      disabled={loading}
-                      className="bg-terracotta-600 hover:bg-terracotta-700 text-white rounded-full px-6"
-                    >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Ajouter au panier
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <ProductCard key={product.id} product={product} isShop={true} />
             ))}
           </div>
         </div>
@@ -414,7 +450,7 @@ const LZLoopWebsite = ({
       {/* Livraison Section */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-serif font-bold text-terracotta-900 mb-8">Livraison</h2>
+          <h2 className="text-4xl font-serif font-bold text-brown-900 mb-8">Livraison</h2>
           <p className="text-lg text-sand-700 mb-12 max-w-2xl mx-auto">
             Votre commande est préparée avec soin et expédiée sous 2 à 3 jours ouvrés.
           </p>
@@ -424,11 +460,11 @@ const LZLoopWebsite = ({
               { zone: "Europe", price: "12€", free: "", icon: "🇪🇺" },
               { zone: "International", price: "20€", free: "", icon: "🌍" }
             ].map((shipping, index) => (
-              <Card key={index} className="border-2 border-terracotta-200 hover:border-terracotta-400 transition-colors bg-white">
+              <Card key={index} className="border-2 border-brown-200 hover:border-brown-400 transition-colors bg-white">
                 <CardContent className="p-6 text-center">
                   <div className="text-4xl mb-4">{shipping.icon}</div>
-                  <h3 className="font-serif font-bold text-terracotta-900 text-xl mb-2">{shipping.zone}</h3>
-                  <div className="text-2xl font-bold text-terracotta-600 mb-2">{shipping.price}</div>
+                  <h3 className="font-serif font-bold text-brown-900 text-xl mb-2">{shipping.zone}</h3>
+                  <div className="text-2xl font-bold text-brown-600 mb-2">{shipping.price}</div>
                   {shipping.free && (
                     <div className="text-sm text-rose-600 font-medium">{shipping.free}</div>
                   )}
@@ -440,13 +476,13 @@ const LZLoopWebsite = ({
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-20 bg-sand-50">
+      <section id="contact" className="py-20 bg-beige-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-serif font-bold text-center text-terracotta-900 mb-12">Contact</h2>
+          <h2 className="text-4xl font-serif font-bold text-center text-brown-900 mb-12">Contact</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             <Card className="border-none shadow-lg bg-white">
               <CardHeader>
-                <CardTitle className="text-terracotta-900">Envoyez-nous un message</CardTitle>
+                <CardTitle className="text-brown-900">Envoyez-nous un message</CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleContactSubmit} className="space-y-4">
@@ -479,7 +515,7 @@ const LZLoopWebsite = ({
                       required 
                     />
                   </div>
-                  <Button type="submit" disabled={loading} className="w-full bg-terracotta-600 hover:bg-terracotta-700">
+                  <Button type="submit" disabled={loading} className="w-full bg-brown-600 hover:bg-brown-700">
                     Envoyer le message
                   </Button>
                 </form>
@@ -489,17 +525,17 @@ const LZLoopWebsite = ({
             <div className="space-y-8">
               <Card className="border-none shadow-lg bg-white">
                 <CardContent className="p-6">
-                  <h3 className="font-serif font-bold text-terracotta-900 mb-4">Suivez-nous</h3>
+                  <h3 className="font-serif font-bold text-brown-900 mb-4">Suivez-nous</h3>
                   <div className="space-y-3">
-                    <a href="https://instagram.com/lzloop" className="flex items-center text-sand-700 hover:text-terracotta-600 transition-colors">
+                    <a href="https://instagram.com/lzloop" className="flex items-center text-sand-700 hover:text-brown-600 transition-colors">
                       <Instagram className="w-5 h-5 mr-3" />
                       @lzloop
                     </a>
-                    <a href="https://tiktok.com/@lzloop" className="flex items-center text-sand-700 hover:text-terracotta-600 transition-colors">
+                    <a href="https://tiktok.com/@lzloop" className="flex items-center text-sand-700 hover:text-brown-600 transition-colors">
                       <MessageCircle className="w-5 h-5 mr-3" />
                       @lzloop (TikTok)
                     </a>
-                    <a href="https://snapchat.com/add/lzloop" className="flex items-center text-sand-700 hover:text-terracotta-600 transition-colors">
+                    <a href="https://snapchat.com/add/lzloop" className="flex items-center text-sand-700 hover:text-brown-600 transition-colors">
                       <MessageCircle className="w-5 h-5 mr-3" />
                       @lzloop (Snapchat)
                     </a>
@@ -509,9 +545,9 @@ const LZLoopWebsite = ({
               
               <Card className="border-none shadow-lg bg-white">
                 <CardContent className="p-6">
-                  <h3 className="font-serif font-bold text-terracotta-900 mb-4">Contact direct</h3>
+                  <h3 className="font-serif font-bold text-brown-900 mb-4">Contact direct</h3>
                   <div className="space-y-3">
-                    <a href="mailto:lzloop13@gmail.com" className="flex items-center text-sand-700 hover:text-terracotta-600 transition-colors">
+                    <a href="mailto:lzloop13@gmail.com" className="flex items-center text-sand-700 hover:text-brown-600 transition-colors">
                       <Mail className="w-5 h-5 mr-3" />
                       lzloop13@gmail.com
                     </a>
@@ -524,7 +560,7 @@ const LZLoopWebsite = ({
       </section>
 
       {/* Footer */}
-      <footer className="bg-terracotta-900 text-white py-8">
+      <footer className="bg-brown-900 text-white py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-lg font-serif">Fait main avec amour à Marseille</p>
           <p className="text-sand-300 mt-2">© 2024 LZ Loop. Tous droits réservés.</p>
@@ -535,7 +571,7 @@ const LZLoopWebsite = ({
       <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-terracotta-900">Votre Panier</DialogTitle>
+            <DialogTitle className="text-brown-900">Votre Panier</DialogTitle>
             <DialogDescription>
               {cart.length === 0 ? "Votre panier est vide" : `${getCartCount()} article(s) dans votre panier`}
             </DialogDescription>
@@ -547,8 +583,18 @@ const LZLoopWebsite = ({
                 <div key={item.id} className="flex items-center space-x-4 p-4 border rounded-lg">
                   <img src={item.product_image} alt={item.product_name} className="w-16 h-16 object-cover rounded" />
                   <div className="flex-1">
-                    <h4 className="font-medium text-terracotta-900">{item.product_name}</h4>
-                    <p className="text-sand-600">{item.product_price}€ x {item.quantity}</p>
+                    <h4 className="font-medium text-brown-900">{item.product_name}</h4>
+                    <div className="text-sand-600">
+                      <span>{item.product_price}€</span>
+                      {item.with_charm && <span> + Charme (2€)</span>}
+                      <span> x {item.quantity} = {item.total_price.toFixed(2)}€</span>
+                    </div>
+                    {item.with_charm && (
+                      <div className="flex items-center text-xs text-brown-600 mt-1">
+                        <Gem className="w-3 h-3 mr-1" />
+                        Avec charme
+                      </div>
+                    )}
                   </div>
                   <Button 
                     variant="ghost" 
@@ -660,7 +706,7 @@ const LZLoopWebsite = ({
                     </Select>
                   </div>
                   
-                  <div className="bg-sand-50 p-4 rounded-lg space-y-2">
+                  <div className="bg-beige-50 p-4 rounded-lg space-y-2">
                     <div className="flex justify-between">
                       <span>Sous-total:</span>
                       <span>{getCartTotal().toFixed(2)}€</span>
@@ -689,7 +735,7 @@ const LZLoopWebsite = ({
                   <Button 
                     type="submit" 
                     disabled={loading}
-                    className="w-full bg-terracotta-600 hover:bg-terracotta-700 text-white"
+                    className="w-full bg-brown-600 hover:bg-brown-700 text-white"
                   >
                     Confirmer la commande
                   </Button>

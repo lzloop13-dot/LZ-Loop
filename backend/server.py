@@ -44,6 +44,9 @@ class CartItem(BaseModel):
     product_price: float
     product_image: str
     quantity: int
+    with_charm: bool = False
+    charm_price: float = 0.0
+    total_price: float
     added_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Order(BaseModel):
@@ -78,6 +81,7 @@ class ProductCreate(BaseModel):
 class CartItemCreate(BaseModel):
     product_id: str
     quantity: int = 1
+    with_charm: bool = False
 
 class OrderCreate(BaseModel):
     customer_name: str
@@ -107,48 +111,93 @@ async def send_email(to_email: str, subject: str, body: str):
 # Initialize products
 @api_router.on_event("startup")
 async def init_products():
-    # Check if products already exist
-    existing_products = await db.products.find().to_list(1000)
-    if len(existing_products) == 0:
-        initial_products = [
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Sand",
-                "description": "Sac élégant en beige naturel, tissé à la main avec des détails dorés. L'essence de l'artisanat méditerranéen.",
-                "price": 89.00,
-                "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/sujf3d6w_D410F3BB-5D94-458A-B221-F1FDEAE0BFD6.PNG",
-                "category": "sac",
-                "created_at": datetime.now(timezone.utc)
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Sunny",
-                "description": "Sac vibrant jaune et blanc, inspiré des rayons du soleil méditerranéen. Fait main avec amour.",
-                "price": 95.00,
-                "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/adrsyxm7_1D9687F2-8B7F-42FF-B292-7B0CCC1C505D.PNG",
-                "category": "sac",
-                "created_at": datetime.now(timezone.utc)
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Teddy Bear",
-                "description": "Pochette d'ordinateur élégante et protectrice, tissée dans des tons naturels. Parfaite pour vos essentiels numériques.",
-                "price": 65.00,
-                "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/profvmlb_7D33726B-66FA-448B-8287-BAFB3A03F603.PNG",
-                "category": "pochette",
-                "created_at": datetime.now(timezone.utc)
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Classy",
-                "description": "Sac sophistiqué noir et beige, alliant élégance moderne et savoir-faire traditionnel marseillais.",
-                "price": 120.00,
-                "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/13v0alzd_D171FAAA-B5AF-427B-A151-357541FCA9C3%202.PNG",
-                "category": "sac",
-                "created_at": datetime.now(timezone.utc)
-            }
-        ]
-        await db.products.insert_many(initial_products)
+    # Clear existing products to update with new prices and products
+    await db.products.delete_many({})
+    
+    initial_products = [
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Sand",
+            "description": "Sac élégant en beige naturel, tissé à la main avec des détails dorés. L'essence de l'artisanat méditerranéen.",
+            "price": 35.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/sujf3d6w_D410F3BB-5D94-458A-B221-F1FDEAE0BFD6.PNG",
+            "category": "sac",
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Sunny",
+            "description": "Sac vibrant jaune et blanc, inspiré des rayons du soleil méditerranéen. Fait main avec amour.",
+            "price": 40.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/adrsyxm7_1D9687F2-8B7F-42FF-B292-7B0CCC1C505D.PNG",
+            "category": "sac",
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Teddy Bear",
+            "description": "Pochette d'ordinateur élégante et protectrice, tissée dans des tons naturels. Parfaite pour vos essentiels numériques.",
+            "price": 35.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/profvmlb_7D33726B-66FA-448B-8287-BAFB3A03F603.PNG",
+            "category": "pochette",
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Classy",
+            "description": "Sac sophistiqué noir et beige, alliant élégance moderne et savoir-faire traditionnel marseillais.",
+            "price": 35.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/13v0alzd_D171FAAA-B5AF-427B-A151-357541FCA9C3%202.PNG",
+            "category": "sac",
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Candy",
+            "description": "Sac rose fuchsia éclatant, tissé à la main pour apporter une touche de couleur à votre quotidien.",
+            "price": 35.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/jxvs3q03_89A970F2-818C-480A-A346-7A647310DC68.PNG",
+            "category": "sac",
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Lollipop",
+            "description": "Sac aux tons vert et violet, unique et coloré. Un mélange parfait entre modernité et artisanat traditionnel.",
+            "price": 35.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/1eby2bgd_5D18E2E9-3034-465B-8568-E752C6EB58F9.PNG",
+            "category": "sac",
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Mykonos",
+            "description": "Sac bleu et blanc inspiré des îles grecques, tissé à la main avec l'esprit méditerranéen authentique.",
+            "price": 35.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/ssq0gix4_3DB6CC4D-7271-4A23-9F0E-4D6BCE171DF1.PNG",
+            "category": "sac",
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Jenny",
+            "description": "Sac bleu 100% fait de jean recyclé. Éco-responsable et stylé, parfait pour un look décontracté.",
+            "price": 40.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/lwi6dv9b_B8648C98-FCA4-4188-B2E3-99E9C8D36302.PNG",
+            "category": "sac",
+            "created_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Mermaid",
+            "description": "Sac aux couleurs marines et apaisantes, tissé à la main pour capturer l'esprit de la mer Méditerranée.",
+            "price": 35.00,
+            "image_url": "https://customer-assets.emergentagent.com/job_handmade-chic-1/artifacts/dhm61hyy_055F2606-20B6-4790-8B40-EA1BD38FC13D.PNG",
+            "category": "sac",
+            "created_at": datetime.now(timezone.utc)
+        }
+    ]
+    await db.products.insert_many(initial_products)
 
 # Product endpoints
 @api_router.get("/products", response_model=List[Product])
@@ -170,12 +219,18 @@ async def add_to_cart(item: CartItemCreate):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
+    charm_price = 2.0 if item.with_charm else 0.0
+    total_price = (product["price"] + charm_price) * item.quantity
+    
     cart_item = CartItem(
         product_id=item.product_id,
         product_name=product["name"],
         product_price=product["price"],
         product_image=product["image_url"],
-        quantity=item.quantity
+        quantity=item.quantity,
+        with_charm=item.with_charm,
+        charm_price=charm_price,
+        total_price=total_price
     )
     
     await db.cart_items.insert_one(cart_item.dict())
@@ -208,7 +263,7 @@ async def create_order(order_data: OrderCreate):
         "International": 20.0
     }
     
-    subtotal = sum(item.product_price * item.quantity for item in order_data.items)
+    subtotal = sum(item.total_price for item in order_data.items)
     shipping_cost = shipping_costs.get(order_data.shipping_zone, 20.0)
     
     # Free shipping for France if order > 80€
@@ -233,6 +288,12 @@ async def create_order(order_data: OrderCreate):
     
     # Send confirmation emails
     customer_subject = "Confirmation de votre commande LZ Loop"
+    
+    items_text = ""
+    for item in order.items:
+        charm_text = " + Charme" if item.with_charm else ""
+        items_text += f"- {item.product_name}{charm_text} x{item.quantity} ({item.total_price:.2f}€)\n"
+    
     customer_body = f"""
     Bonjour {order.customer_name},
     
@@ -240,6 +301,10 @@ async def create_order(order_data: OrderCreate):
     
     Récapitulatif de votre commande:
     - Numéro de commande: {order.id}
+    
+    Produits commandés:
+    {items_text}
+    
     - Sous-total: {subtotal:.2f}€
     - Frais de livraison: {shipping_cost:.2f}€
     - Total: {total:.2f}€
@@ -268,7 +333,7 @@ async def create_order(order_data: OrderCreate):
     Total: {total:.2f}€
     
     Produits commandés:
-    {chr(10).join([f"- {item.product_name} x{item.quantity} ({item.product_price:.2f}€)" for item in order.items])}
+    {items_text}
     """
     
     await send_email(order.customer_email, customer_subject, customer_body)
