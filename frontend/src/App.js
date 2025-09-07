@@ -976,7 +976,286 @@ const AdminPanel = ({ products, fetchProducts, adminToken }) => {
   );
 };
 
-const AdminLogin = ({ adminLogin }) => {
+const PromoCartContent = ({ 
+  cart, 
+  removeFromCart, 
+  getCartTotal, 
+  orderFormData, 
+  setOrderFormData, 
+  getShippingCost, 
+  handleOrderSubmit, 
+  loading 
+}) => {
+  const [promoCode, setPromoCode] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoError, setPromoError] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState(null);
+
+  const validatePromoCode = async () => {
+    if (!promoCode.trim()) return;
+    
+    try {
+      const response = await axios.post(`${API}/promo-codes/validate`, {
+        code: promoCode,
+        cart_total: getCartTotal(),
+        product_ids: cart.map(item => item.product_id)
+      });
+      
+      setPromoDiscount(response.data.discount_amount);
+      setAppliedPromo(response.data);
+      setPromoError('');
+      toast.success(`Code promo "${response.data.code}" appliqué !`);
+    } catch (error) {
+      setPromoError(error.response?.data?.detail || "Code promo invalide");
+      setPromoDiscount(0);
+      setAppliedPromo(null);
+    }
+  };
+
+  const removePromoCode = () => {
+    setPromoCode('');
+    setPromoDiscount(0);
+    setPromoError('');
+    setAppliedPromo(null);
+    toast.success("Code promo retiré");
+  };
+
+  const subtotal = getCartTotal();
+  const finalSubtotal = subtotal - promoDiscount;
+  const shippingCost = getShippingCost(orderFormData.shippingZone, finalSubtotal);
+  const total = finalSubtotal + shippingCost;
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    const formDataWithPromo = {
+      ...orderFormData,
+      promo_code: appliedPromo?.code || null
+    };
+    handleOrderSubmit(e, formDataWithPromo);
+  };
+
+  return (
+    <div className="space-y-4">
+      {cart.map((item) => (
+        <div key={item.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+          <img src={item.product_image} alt={item.product_name} className="w-16 h-16 object-cover rounded" />
+          <div className="flex-1">
+            <h4 className="font-medium text-brown-900">{item.product_name}</h4>
+            <div className="text-sand-600">
+              <span>{item.product_price}€</span>
+              {item.with_charm && <span> + Charme (2€)</span>}
+              <span> x {item.quantity} = {item.total_price.toFixed(2)}€</span>
+            </div>
+            {item.with_charm && (
+              <div className="flex items-center text-xs text-brown-600 mt-1">
+                <Gem className="w-3 h-3 mr-1" />
+                Avec charme
+              </div>
+            )}
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => removeFromCart(item.id)}
+            className="text-rose-600 hover:text-rose-700"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      ))}
+      
+      <Separator />
+      
+      {/* Promo Code Section */}
+      <Card className="border-brown-200">
+        <CardContent className="p-4">
+          <Label className="text-brown-900 font-medium">Code promo</Label>
+          {!appliedPromo ? (
+            <div className="flex space-x-2 mt-2">
+              <Input 
+                placeholder="Entrez votre code promo"
+                value={promoCode}
+                onChange={(e) => {
+                  setPromoCode(e.target.value.toUpperCase());
+                  setPromoError('');
+                }}
+                className="flex-1"
+              />
+              <Button 
+                onClick={validatePromoCode}
+                variant="outline"
+                className="border-brown-300 text-brown-700"
+                disabled={!promoCode.trim()}
+              >
+                Appliquer
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center">
+                <Check className="w-4 h-4 text-green-600 mr-2" />
+                <span className="text-green-800 font-medium">
+                  {appliedPromo.code} - {appliedPromo.name}
+                </span>
+              </div>
+              <Button 
+                onClick={removePromoCode}
+                variant="ghost"
+                size="sm"
+                className="text-red-600 hover:text-red-700"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+          {promoError && (
+            <p className="text-red-600 text-sm mt-2">{promoError}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-2">
+        <div className="flex justify-between text-lg">
+          <span>Sous-total:</span>
+          <span className="font-bold">{subtotal.toFixed(2)}€</span>
+        </div>
+        
+        {promoDiscount > 0 && (
+          <div className="flex justify-between text-green-600">
+            <span>Remise ({appliedPromo.code}):</span>
+            <span>-{promoDiscount.toFixed(2)}€</span>
+          </div>
+        )}
+        
+        <form onSubmit={handleFormSubmit} className="space-y-4 mt-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="firstName">Prénom</Label>
+              <Input 
+                id="firstName" 
+                value={orderFormData.firstName}
+                onChange={(e) => setOrderFormData({...orderFormData, firstName: e.target.value})}
+                required 
+              />
+            </div>
+            <div>
+              <Label htmlFor="lastName">Nom</Label>
+              <Input 
+                id="lastName" 
+                value={orderFormData.lastName}
+                onChange={(e) => setOrderFormData({...orderFormData, lastName: e.target.value})}
+                required 
+              />
+            </div>
+          </div>
+          
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input 
+              id="email" 
+              type="email"
+              value={orderFormData.email}
+              onChange={(e) => setOrderFormData({...orderFormData, email: e.target.value})}
+              required 
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="phone">Téléphone</Label>
+            <Input 
+              id="phone" 
+              value={orderFormData.phone}
+              onChange={(e) => setOrderFormData({...orderFormData, phone: e.target.value})}
+              required 
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="address">Adresse</Label>
+            <Input 
+              id="address" 
+              value={orderFormData.address}
+              onChange={(e) => setOrderFormData({...orderFormData, address: e.target.value})}
+              required 
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="city">Ville</Label>
+              <Input 
+                id="city" 
+                value={orderFormData.city}
+                onChange={(e) => setOrderFormData({...orderFormData, city: e.target.value})}
+                required 
+              />
+            </div>
+            <div>
+              <Label htmlFor="postalCode">Code postal</Label>
+              <Input 
+                id="postalCode" 
+                value={orderFormData.postalCode}
+                onChange={(e) => setOrderFormData({...orderFormData, postalCode: e.target.value})}
+                required 
+              />
+            </div>
+          </div>
+          
+          <div>
+            <Label htmlFor="shippingZone">Zone de livraison</Label>
+            <Select 
+              value={orderFormData.shippingZone} 
+              onValueChange={(value) => setOrderFormData({...orderFormData, shippingZone: value})}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="France">France</SelectItem>
+                <SelectItem value="Europe">Europe</SelectItem>
+                <SelectItem value="International">International</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="bg-beige-50 p-4 rounded-lg space-y-2">
+            <div className="flex justify-between">
+              <span>Sous-total:</span>
+              <span>{subtotal.toFixed(2)}€</span>
+            </div>
+            {promoDiscount > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Remise:</span>
+                <span>-{promoDiscount.toFixed(2)}€</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span>Livraison:</span>
+              <span>{shippingCost.toFixed(2)}€</span>
+            </div>
+            <Separator />
+            <div className="flex justify-between text-lg font-bold">
+              <span>Total:</span>
+              <span>{total.toFixed(2)}€</span>
+            </div>
+            {orderFormData.shippingZone === 'France' && finalSubtotal >= 80 && (
+              <p className="text-sm text-rose-600">Livraison gratuite</p>
+            )}
+          </div>
+          
+          <Button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-brown-600 hover:bg-brown-700 text-white py-3"
+          >
+            <CreditCard className="w-5 h-5 mr-2" />
+            Procéder au paiement - {total.toFixed(2)}€
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+};
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e) => {
