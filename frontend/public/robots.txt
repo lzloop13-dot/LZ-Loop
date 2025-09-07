@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://lzloop.com/sitemap.xml
+
+# Allow Google to crawl all content
+User-agent: Googlebot
+Allow: /
+
+# Block access to admin areas from search engines
+User-agent: *
+Disallow: /api/admin/
+
+# Allow all other pages
+Allow: /
+Allow: /#about
+Allow: /#collection  
+Allow: /#shop
+Allow: /#contact
