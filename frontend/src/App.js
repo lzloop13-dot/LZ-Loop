@@ -420,21 +420,78 @@ const ProductDetail = ({ products, addToCart, loading, isAdmin, adminLogin, admi
 };
 
 const AdminPanel = ({ products, fetchProducts, adminToken }) => {
+  const [activeTab, setActiveTab] = useState('products');
   const [editingProduct, setEditingProduct] = useState(null);
+  const [editingPromo, setEditingPromo] = useState(null);
+  const [promoCodes, setPromoCodes] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
     price: '',
     image_url: '',
-    category: 'sac'
+    category: 'sac',
+    stock: 100
   });
+  const [promoForm, setPromoForm] = useState({
+    code: '',
+    name: '',
+    discount_type: 'percentage',
+    discount_value: '',
+    applies_to: 'all',
+    min_order_amount: 0
+  });
+
+  useEffect(() => {
+    if (activeTab === 'promos') {
+      fetchPromoCodes();
+    } else if (activeTab === 'orders') {
+      fetchOrders();
+    } else if (activeTab === 'contacts') {
+      fetchContacts();
+    }
+  }, [activeTab]);
+
+  const fetchPromoCodes = async () => {
+    try {
+      const response = await axios.get(`${BACKEND_URL}/api/admin/promo-codes`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      setPromoCodes(response.data);
+    } catch (error) {
+      toast.error("Erreur lors du chargement des codes promo");
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      const response = await axios.get(`${BACKEND_URL}/api/admin/orders`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      setOrders(response.data);
+    } catch (error) {
+      toast.error("Erreur lors du chargement des commandes");
+    }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      const response = await axios.get(`${BACKEND_URL}/api/admin/contacts`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      setContacts(response.data);
+    } catch (error) {
+      toast.error("Erreur lors du chargement des contacts");
+    }
+  };
 
   const handleUpdateProduct = async (productId) => {
     try {
       const updateData = {};
       Object.keys(productForm).forEach(key => {
         if (productForm[key] && productForm[key] !== '') {
-          updateData[key] = key === 'price' ? parseFloat(productForm[key]) : productForm[key];
+          updateData[key] = ['price', 'stock'].includes(key) ? parseFloat(productForm[key]) : productForm[key];
         }
       });
 
@@ -444,7 +501,7 @@ const AdminPanel = ({ products, fetchProducts, adminToken }) => {
 
       toast.success("Produit mis à jour");
       setEditingProduct(null);
-      setProductForm({ name: '', description: '', price: '', image_url: '', category: 'sac' });
+      setProductForm({ name: '', description: '', price: '', image_url: '', category: 'sac', stock: 100 });
       fetchProducts();
     } catch (error) {
       toast.error("Erreur lors de la mise à jour");
@@ -469,7 +526,8 @@ const AdminPanel = ({ products, fetchProducts, adminToken }) => {
     try {
       const productData = {
         ...productForm,
-        price: parseFloat(productForm.price)
+        price: parseFloat(productForm.price),
+        stock: parseInt(productForm.stock)
       };
 
       await axios.post(`${BACKEND_URL}/api/admin/products`, productData, {
@@ -477,146 +535,442 @@ const AdminPanel = ({ products, fetchProducts, adminToken }) => {
       });
 
       toast.success("Produit créé");
-      setProductForm({ name: '', description: '', price: '', image_url: '', category: 'sac' });
+      setProductForm({ name: '', description: '', price: '', image_url: '', category: 'sac', stock: 100 });
       fetchProducts();
     } catch (error) {
       toast.error("Erreur lors de la création");
     }
   };
 
+  const handleCreatePromo = async () => {
+    try {
+      const promoData = {
+        ...promoForm,
+        discount_value: parseFloat(promoForm.discount_value),
+        min_order_amount: parseFloat(promoForm.min_order_amount) || 0
+      };
+
+      await axios.post(`${BACKEND_URL}/api/admin/promo-codes`, promoData, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+
+      toast.success("Code promo créé");
+      setPromoForm({ code: '', name: '', discount_type: 'percentage', discount_value: '', applies_to: 'all', min_order_amount: 0 });
+      fetchPromoCodes();
+    } catch (error) {
+      toast.error("Erreur lors de la création du code promo");
+    }
+  };
+
+  const togglePromoStatus = async (promoId, currentStatus) => {
+    try {
+      await axios.put(`${BACKEND_URL}/api/admin/promo-codes/${promoId}`, {
+        is_active: !currentStatus
+      }, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+
+      toast.success(!currentStatus ? "Code promo activé" : "Code promo désactivé");
+      fetchPromoCodes();
+    } catch (error) {
+      toast.error("Erreur lors de la mise à jour");
+    }
+  };
+
+  const updateOrderStatus = async (orderId, status, trackingNumber = null) => {
+    try {
+      const updateData = { status };
+      if (trackingNumber) updateData.tracking_number = trackingNumber;
+
+      await axios.put(`${BACKEND_URL}/api/admin/orders/${orderId}/status`, updateData, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+
+      toast.success("Statut de commande mis à jour");
+      fetchOrders();
+    } catch (error) {
+      toast.error("Erreur lors de la mise à jour");
+    }
+  };
+
   return (
     <div className="admin-panel p-8 bg-beige-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <h2 className="text-3xl font-serif font-bold text-brown-900 mb-8">Administration LZ Loop</h2>
         
-        {/* Create Product Form */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-brown-900">Ajouter un nouveau produit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Nom du produit</Label>
-                <Input 
-                  value={productForm.name}
-                  onChange={(e) => setProductForm({...productForm, name: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label>Prix</Label>
-                <Input 
-                  type="number"
-                  value={productForm.price}
-                  onChange={(e) => setProductForm({...productForm, price: e.target.value})}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label>Description</Label>
-                <Textarea 
-                  value={productForm.description}
-                  onChange={(e) => setProductForm({...productForm, description: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label>URL de l'image</Label>
-                <Input 
-                  value={productForm.image_url}
-                  onChange={(e) => setProductForm({...productForm, image_url: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label>Catégorie</Label>
-                <Select value={productForm.category} onValueChange={(value) => setProductForm({...productForm, category: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sac">Sac</SelectItem>
-                    <SelectItem value="pochette">Pochette</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Button onClick={handleCreateProduct} className="mt-4 bg-brown-600 hover:bg-brown-700">
-              Créer le produit
+        {/* Tabs */}
+        <div className="flex space-x-1 mb-8">
+          {[
+            { id: 'products', label: 'Produits', icon: Package },
+            { id: 'promos', label: 'Codes Promo', icon: Star },
+            { id: 'orders', label: 'Commandes', icon: ShoppingCart },
+            { id: 'contacts', label: 'Messages', icon: Mail }
+          ].map((tab) => (
+            <Button
+              key={tab.id}
+              variant={activeTab === tab.id ? 'default' : 'outline'}
+              onClick={() => setActiveTab(tab.id)}
+              className={`${activeTab === tab.id ? 'bg-brown-600 text-white' : 'border-brown-300 text-brown-700'}`}
+            >
+              <tab.icon className="w-4 h-4 mr-2" />
+              {tab.label}
             </Button>
-          </CardContent>
-        </Card>
+          ))}
+        </div>
 
-        {/* Products List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
-            <Card key={product.id} className="border-brown-200">
-              <div className="aspect-square overflow-hidden rounded-t-lg">
-                <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-              </div>
-              <CardContent className="p-4">
-                {editingProduct === product.id ? (
-                  <div className="space-y-3">
+        {/* Products Tab */}
+        {activeTab === 'products' && (
+          <>
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="text-brown-900">Ajouter un nouveau produit</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Nom du produit</Label>
                     <Input 
-                      placeholder="Nom"
                       value={productForm.name}
                       onChange={(e) => setProductForm({...productForm, name: e.target.value})}
                     />
+                  </div>
+                  <div>
+                    <Label>Prix</Label>
                     <Input 
-                      placeholder="Prix"
                       type="number"
                       value={productForm.price}
                       onChange={(e) => setProductForm({...productForm, price: e.target.value})}
                     />
+                  </div>
+                  <div>
+                    <Label>Stock</Label>
+                    <Input 
+                      type="number"
+                      value={productForm.stock}
+                      onChange={(e) => setProductForm({...productForm, stock: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Catégorie</Label>
+                    <Select value={productForm.category} onValueChange={(value) => setProductForm({...productForm, category: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sac">Sac</SelectItem>
+                        <SelectItem value="pochette">Pochette</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Description</Label>
                     <Textarea 
-                      placeholder="Description"
                       value={productForm.description}
                       onChange={(e) => setProductForm({...productForm, description: e.target.value})}
                     />
-                    <div className="flex space-x-2">
-                      <Button size="sm" onClick={() => handleUpdateProduct(product.id)} className="bg-green-600 hover:bg-green-700">
-                        Sauvegarder
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingProduct(null)}>
-                        Annuler
-                      </Button>
-                    </div>
                   </div>
-                ) : (
-                  <div>
-                    <h3 className="font-serif font-bold text-brown-900">{product.name}</h3>
-                    <p className="text-sand-600 text-sm mb-2">{product.description}</p>
-                    <p className="text-brown-600 font-bold">{product.price}€</p>
-                    <div className="flex space-x-2 mt-3">
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => {
-                          setEditingProduct(product.id);
-                          setProductForm({
-                            name: product.name,
-                            description: product.description,
-                            price: product.price.toString(),
-                            image_url: product.image_url,
-                            category: product.category
-                          });
-                        }}
-                        className="border-brown-300 text-brown-700"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleDeleteProduct(product.id)}
-                        className="border-red-300 text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+                  <div className="col-span-2">
+                    <Label>URL de l'image</Label>
+                    <Input 
+                      value={productForm.image_url}
+                      onChange={(e) => setProductForm({...productForm, image_url: e.target.value})}
+                    />
                   </div>
-                )}
+                </div>
+                <Button onClick={handleCreateProduct} className="mt-4 bg-brown-600 hover:bg-brown-700">
+                  Créer le produit
+                </Button>
               </CardContent>
             </Card>
-          ))}
-        </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products.map((product) => (
+                <Card key={product.id} className="border-brown-200">
+                  <div className="aspect-square overflow-hidden rounded-t-lg">
+                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                  </div>
+                  <CardContent className="p-4">
+                    {editingProduct === product.id ? (
+                      <div className="space-y-3">
+                        <Input 
+                          placeholder="Nom"
+                          value={productForm.name}
+                          onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                        />
+                        <Input 
+                          placeholder="Prix"
+                          type="number"
+                          value={productForm.price}
+                          onChange={(e) => setProductForm({...productForm, price: e.target.value})}
+                        />
+                        <Input 
+                          placeholder="Stock"
+                          type="number"
+                          value={productForm.stock}
+                          onChange={(e) => setProductForm({...productForm, stock: e.target.value})}
+                        />
+                        <Textarea 
+                          placeholder="Description"
+                          value={productForm.description}
+                          onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                        />
+                        <div className="flex space-x-2">
+                          <Button size="sm" onClick={() => handleUpdateProduct(product.id)} className="bg-green-600 hover:bg-green-700">
+                            Sauvegarder
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingProduct(null)}>
+                            Annuler
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <h3 className="font-serif font-bold text-brown-900">{product.name}</h3>
+                        <p className="text-sand-600 text-sm mb-2">{product.description}</p>
+                        <p className="text-brown-600 font-bold">{product.price}€</p>
+                        <p className="text-sm text-sand-600">Stock: {product.stock || "Non défini"}</p>
+                        <div className="flex items-center justify-between mt-3">
+                          <div className="flex space-x-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setEditingProduct(product.id);
+                                setProductForm({
+                                  name: product.name,
+                                  description: product.description,
+                                  price: product.price.toString(),
+                                  image_url: product.image_url,
+                                  category: product.category,
+                                  stock: (product.stock || 100).toString()
+                                });
+                              }}
+                              className="border-brown-300 text-brown-700"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleDeleteProduct(product.id)}
+                              className="border-red-300 text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <Badge variant={product.is_active ? "default" : "secondary"}>
+                            {product.is_active ? "Actif" : "Inactif"}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Promo Codes Tab */}
+        {activeTab === 'promos' && (
+          <>
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="text-brown-900">Créer un code promo</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Code (ex: WELCOME5)</Label>
+                    <Input 
+                      value={promoForm.code}
+                      placeholder="WELCOME5"
+                      onChange={(e) => setPromoForm({...promoForm, code: e.target.value.toUpperCase()})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Nom/Description</Label>
+                    <Input 
+                      value={promoForm.name}
+                      placeholder="Remise de bienvenue 5%"
+                      onChange={(e) => setPromoForm({...promoForm, name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Type de remise</Label>
+                    <Select value={promoForm.discount_type} onValueChange={(value) => setPromoForm({...promoForm, discount_type: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percentage">Pourcentage (%)</SelectItem>
+                        <SelectItem value="fixed">Montant fixe (€)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Valeur ({promoForm.discount_type === 'percentage' ? '%' : '€'})</Label>
+                    <Input 
+                      type="number"
+                      value={promoForm.discount_value}
+                      placeholder={promoForm.discount_type === 'percentage' ? '5' : '10'}
+                      onChange={(e) => setPromoForm({...promoForm, discount_value: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Commande minimum (€)</Label>
+                    <Input 
+                      type="number"
+                      value={promoForm.min_order_amount}
+                      placeholder="30"
+                      onChange={(e) => setPromoForm({...promoForm, min_order_amount: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleCreatePromo} className="mt-4 bg-brown-600 hover:bg-brown-700">
+                  Créer le code promo
+                </Button>
+              </CardContent>
+            </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {promoCodes.map((promo) => (
+                <Card key={promo.id} className="border-brown-200">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="font-serif font-bold text-brown-900 text-lg">{promo.code}</h3>
+                        <p className="text-sand-600 text-sm">{promo.name}</p>
+                      </div>
+                      <Badge variant={promo.is_active ? "default" : "secondary"}>
+                        {promo.is_active ? "Actif" : "Inactif"}
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2 mb-4">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-sand-600">Remise:</span>
+                        <span className="font-medium">
+                          {promo.discount_value}{promo.discount_type === 'percentage' ? '%' : '€'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-sand-600">Minimum:</span>
+                        <span className="font-medium">{promo.min_order_amount}€</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-sand-600">Utilisations:</span>
+                        <span className="font-medium">
+                          {promo.current_uses}{promo.max_uses ? `/${promo.max_uses}` : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button 
+                      onClick={() => togglePromoStatus(promo.id, promo.is_active)}
+                      variant={promo.is_active ? "outline" : "default"}
+                      className={promo.is_active ? "border-red-300 text-red-700 hover:bg-red-50" : "bg-green-600 hover:bg-green-700"}
+                      size="sm"
+                    >
+                      {promo.is_active ? "Désactiver" : "Activer"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Orders Tab */}
+        {activeTab === 'orders' && (
+          <div className="space-y-6">
+            {orders.map((order) => (
+              <Card key={order.id} className="border-brown-200">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-serif font-bold text-brown-900">Commande #{order.id.slice(0, 8)}</h3>
+                      <p className="text-sand-600">{order.customer_name} - {order.customer_email}</p>
+                      <p className="text-sm text-sand-600">{new Date(order.created_at).toLocaleDateString('fr-FR')}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-brown-600">{order.total}€</div>
+                      <Badge variant={
+                        order.status === 'paid' ? 'default' : 
+                        order.status === 'shipped' ? 'secondary' : 
+                        order.status === 'delivered' ? 'outline' : 'destructive'
+                      }>
+                        {order.status}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <h4 className="font-medium mb-2">Produits commandés:</h4>
+                    {order.items.map((item, index) => (
+                      <div key={index} className="text-sm text-sand-600">
+                        - {item.product_name} x{item.quantity} 
+                        {item.with_charm && " + Charme"} = {item.total_price}€
+                      </div>
+                    ))}
+                    {order.promo_code && (
+                      <div className="text-sm text-green-600 mt-2">
+                        Code promo: {order.promo_code} (-{order.promo_discount}€)
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex space-x-2">
+                    <Select 
+                      value={order.status}
+                      onValueChange={(status) => updateOrderStatus(order.id, status)}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">En attente</SelectItem>
+                        <SelectItem value="paid">Payé</SelectItem>
+                        <SelectItem value="shipped">Expédié</SelectItem>
+                        <SelectItem value="delivered">Livré</SelectItem>
+                        <SelectItem value="cancelled">Annulé</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="mt-4 text-sm text-sand-600">
+                    <p><strong>Adresse:</strong> {order.shipping_address}</p>
+                    <p><strong>Zone:</strong> {order.shipping_zone}</p>
+                    <p><strong>Téléphone:</strong> {order.customer_phone}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Contacts Tab */}
+        {activeTab === 'contacts' && (
+          <div className="space-y-6">
+            {contacts.map((contact) => (
+              <Card key={contact.id} className="border-brown-200">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-serif font-bold text-brown-900">{contact.name}</h3>
+                      <p className="text-sand-600">{contact.email}</p>
+                      <p className="text-sm text-sand-600">{new Date(contact.created_at).toLocaleDateString('fr-FR')}</p>
+                    </div>
+                    <Badge variant={contact.status === 'read' ? 'secondary' : 'default'}>
+                      {contact.status === 'read' ? 'Lu' : 'Non lu'}
+                    </Badge>
+                  </div>
+                  <p className="text-sand-700">{contact.message}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
