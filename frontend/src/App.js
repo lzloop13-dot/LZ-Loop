@@ -1472,164 +1472,17 @@ const LZLoopWebsite = ({
           </DialogHeader>
           
           {cart.length > 0 && (
-            <div className="space-y-4">
-              {cart.map((item) => (
-                <div key={item.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                  <img src={item.product_image} alt={item.product_name} className="w-16 h-16 object-cover rounded" />
-                  <div className="flex-1">
-                    <h4 className="font-medium text-brown-900">{item.product_name}</h4>
-                    <div className="text-sand-600">
-                      <span>{item.product_price}€</span>
-                      {item.with_charm && <span> + Charme (2€)</span>}
-                      <span> x {item.quantity} = {item.total_price.toFixed(2)}€</span>
-                    </div>
-                    {item.with_charm && (
-                      <div className="flex items-center text-xs text-brown-600 mt-1">
-                        <Gem className="w-3 h-3 mr-1" />
-                        Avec charme
-                      </div>
-                    )}
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => removeFromCart(item.id)}
-                    className="text-rose-600 hover:text-rose-700"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-              
-              <Separator />
-              
-              <div className="space-y-2">
-                <div className="flex justify-between text-lg">
-                  <span>Sous-total:</span>
-                  <span className="font-bold">{getCartTotal().toFixed(2)}€</span>
-                </div>
-                
-                <form onSubmit={handleOrderSubmit} className="space-y-4 mt-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="firstName">Prénom</Label>
-                      <Input 
-                        id="firstName" 
-                        value={orderFormData.firstName}
-                        onChange={(e) => setOrderFormData({...orderFormData, firstName: e.target.value})}
-                        required 
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="lastName">Nom</Label>
-                      <Input 
-                        id="lastName" 
-                        value={orderFormData.lastName}
-                        onChange={(e) => setOrderFormData({...orderFormData, lastName: e.target.value})}
-                        required 
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                      id="email" 
-                      type="email"
-                      value={orderFormData.email}
-                      onChange={(e) => setOrderFormData({...orderFormData, email: e.target.value})}
-                      required 
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="phone">Téléphone</Label>
-                    <Input 
-                      id="phone" 
-                      value={orderFormData.phone}
-                      onChange={(e) => setOrderFormData({...orderFormData, phone: e.target.value})}
-                      required 
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="address">Adresse</Label>
-                    <Input 
-                      id="address" 
-                      value={orderFormData.address}
-                      onChange={(e) => setOrderFormData({...orderFormData, address: e.target.value})}
-                      required 
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="city">Ville</Label>
-                      <Input 
-                        id="city" 
-                        value={orderFormData.city}
-                        onChange={(e) => setOrderFormData({...orderFormData, city: e.target.value})}
-                        required 
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="postalCode">Code postal</Label>
-                      <Input 
-                        id="postalCode" 
-                        value={orderFormData.postalCode}
-                        onChange={(e) => setOrderFormData({...orderFormData, postalCode: e.target.value})}
-                        required 
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="shippingZone">Zone de livraison</Label>
-                    <Select 
-                      value={orderFormData.shippingZone} 
-                      onValueChange={(value) => setOrderFormData({...orderFormData, shippingZone: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="France">France</SelectItem>
-                        <SelectItem value="Europe">Europe</SelectItem>
-                        <SelectItem value="International">International</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="bg-beige-50 p-4 rounded-lg space-y-2">
-                    <div className="flex justify-between">
-                      <span>Sous-total:</span>
-                      <span>{getCartTotal().toFixed(2)}€</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Livraison:</span>
-                      <span>{getShippingCost(orderFormData.shippingZone, getCartTotal()).toFixed(2)}€</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total:</span>
-                      <span>{(getCartTotal() + getShippingCost(orderFormData.shippingZone, getCartTotal())).toFixed(2)}€</span>
-                    </div>
-                    {orderFormData.shippingZone === 'France' && getCartTotal() >= 80 && (
-                      <p className="text-sm text-rose-600">Livraison gratuite</p>
-                    )}
-                  </div>
-                  
-                  <Button 
-                    type="submit" 
-                    disabled={loading}
-                    className="w-full bg-brown-600 hover:bg-brown-700 text-white py-3"
-                  >
-                    <CreditCard className="w-5 h-5 mr-2" />
-                    Procéder au paiement
-                  </Button>
-                </form>
-              </div>
-            </div>
+            <PromoCartContent 
+              cart={cart}
+              removeFromCart={removeFromCart}
+              getCartTotal={getCartTotal}
+              getCartCount={getCartCount}
+              orderFormData={orderFormData}
+              setOrderFormData={setOrderFormData}
+              getShippingCost={getShippingCost}
+              handleOrderSubmit={handleOrderSubmit}
+              loading={loading}
+            />
           )}
         </DialogContent>
       </Dialog>
