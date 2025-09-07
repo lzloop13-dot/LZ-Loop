@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
 import axios from "axios";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
 import { Badge } from "./components/ui/badge";
@@ -35,7 +35,10 @@ import {
   LogOut,
   Edit,
   Trash2,
-  Package
+  Package,
+  ArrowLeft,
+  CreditCard,
+  Check
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -48,12 +51,20 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminToken, setAdminToken] = useState(localStorage.getItem('admin_token'));
+  const [paymentStatus, setPaymentStatus] = useState(null);
 
   useEffect(() => {
     fetchProducts();
     fetchCart();
     if (adminToken) {
       setIsAdmin(true);
+    }
+    
+    // Check for payment status in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    if (sessionId) {
+      checkPaymentStatus(sessionId);
     }
   }, [adminToken]);
 
@@ -122,14 +133,44 @@ function App() {
         shipping_zone: formData.shippingZone
       };
 
-      await axios.post(`${API}/orders`, orderData);
-      await fetchCart();
-      setIsCartOpen(false);
-      toast.success("Commande confirmée. Vous recevrez un email de confirmation.");
+      const orderResponse = await axios.post(`${API}/orders`, orderData);
+      const order = orderResponse.data;
+      
+      // Create payment checkout
+      const currentUrl = window.location.origin;
+      const checkoutData = {
+        order_id: order.id,
+        success_url: `${currentUrl}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: currentUrl
+      };
+      
+      const checkoutResponse = await axios.post(`${API}/payments/checkout`, checkoutData);
+      
+      // Redirect to Stripe checkout
+      window.location.href = checkoutResponse.data.checkout_url;
+      
     } catch (error) {
+      console.error('Erreur lors de la commande:', error);
       toast.error("Erreur lors de la commande");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkPaymentStatus = async (sessionId) => {
+    try {
+      const response = await axios.get(`${API}/payments/status/${sessionId}`);
+      setPaymentStatus(response.data);
+      
+      if (response.data.payment_status === 'paid') {
+        toast.success("Paiement confirmé ! Merci pour votre commande.");
+        await fetchCart(); // Cart should be empty now
+      } else {
+        toast.error("Paiement non confirmé");
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification du paiement:', error);
+      toast.error("Erreur lors de la vérification du paiement");
     }
   };
 
@@ -187,6 +228,17 @@ function App() {
               adminLogout={adminLogout}
               fetchProducts={fetchProducts}
               adminToken={adminToken}
+              paymentStatus={paymentStatus}
+            />
+          } />
+          <Route path="/product/:productId" element={
+            <ProductDetail 
+              products={products}
+              addToCart={addToCart}
+              loading={loading}
+              isAdmin={isAdmin}
+              adminLogin={adminLogin}
+              adminLogout={adminLogout}
             />
           } />
         </Routes>
@@ -195,6 +247,177 @@ function App() {
     </div>
   );
 }
+
+const ProductDetail = ({ products, addToCart, loading, isAdmin, adminLogin, adminLogout }) => {
+  const { productId } = useParams();
+  const navigate = useNavigate();
+  const [product, setProduct] = useState(null);
+  const [withCharm, setWithCharm] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+
+  useEffect(() => {
+    const foundProduct = products.find(p => p.id === productId);
+    if (foundProduct) {
+      setProduct(foundProduct);
+    } else {
+      // Fetch product if not in products list
+      fetchProduct(productId);
+    }
+  }, [productId, products]);
+
+  const fetchProduct = async (id) => {
+    try {
+      const response = await axios.get(`${API}/products/${id}`);
+      setProduct(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement du produit:', error);
+      navigate('/');
+    }
+  };
+
+  const handleAddToCart = () => {
+    for (let i = 0; i < quantity; i++) {
+      addToCart(product.id, withCharm);
+    }
+  };
+
+  const getTotalPrice = () => {
+    if (!product) return 0;
+    return (product.price + (withCharm ? 2 : 0)) * quantity;
+  };
+
+  if (!product) {
+    return <div className="min-h-screen flex items-center justify-center">Chargement...</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-beige-50 to-sand-50">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-beige-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" onClick={() => navigate('/')}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Retour
+              </Button>
+              <div className="text-2xl font-serif font-bold text-brown-800">LZ Loop</div>
+            </div>
+            {isAdmin ? (
+              <Button variant="ghost" size="sm" onClick={adminLogout} className="text-brown-700">
+                <LogOut className="w-4 h-4 mr-2" />
+                Déconnexion
+              </Button>
+            ) : (
+              <AdminLogin adminLogin={adminLogin} />
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Product Detail */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          {/* Product Image */}
+          <div className="aspect-square overflow-hidden rounded-lg shadow-lg">
+            <img 
+              src={product.image_url} 
+              alt={product.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+
+          {/* Product Info */}
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-4xl font-serif font-bold text-brown-900 mb-4">{product.name}</h1>
+              <p className="text-lg text-sand-700 leading-relaxed">{product.description}</p>
+            </div>
+
+            <div className="text-3xl font-bold text-brown-600">
+              {getTotalPrice().toFixed(2)}€
+              {withCharm && (
+                <span className="text-lg text-sand-600 ml-2">
+                  ({product.price}€ + 2€ charme)
+                </span>
+              )}
+            </div>
+
+            {/* Charm Option */}
+            <Card className="border-beige-200">
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-3">
+                  <Checkbox 
+                    id="charm"
+                    checked={withCharm}
+                    onCheckedChange={setWithCharm}
+                  />
+                  <Label htmlFor="charm" className="flex items-center text-brown-700">
+                    <Gem className="w-4 h-4 mr-2" />
+                    Ajouter un charme (+2€)
+                  </Label>
+                </div>
+                <p className="text-sm text-sand-600 mt-2 ml-6">
+                  Personnalisez votre sac avec un élégant charme artisanal
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Quantity */}
+            <div className="flex items-center space-x-4">
+              <Label className="text-brown-900 font-medium">Quantité:</Label>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="border-brown-300"
+                >
+                  <Minus className="w-4 h-4" />
+                </Button>
+                <span className="px-4 py-2 border border-brown-300 rounded text-brown-900 min-w-[60px] text-center">
+                  {quantity}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setQuantity(quantity + 1)}
+                  className="border-brown-300"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Add to Cart */}
+            <Button 
+              onClick={handleAddToCart}
+              disabled={loading}
+              className="w-full bg-brown-600 hover:bg-brown-700 text-white py-3 text-lg"
+            >
+              <ShoppingCart className="w-5 h-5 mr-2" />
+              Ajouter au panier - {getTotalPrice().toFixed(2)}€
+            </Button>
+
+            {/* Product Features */}
+            <div className="grid grid-cols-2 gap-4 pt-6">
+              <div className="text-center p-4 bg-beige-100 rounded-lg">
+                <Shield className="w-8 h-8 text-brown-600 mx-auto mb-2" />
+                <h3 className="font-medium text-brown-900">Fait main</h3>
+                <p className="text-sm text-sand-600">Artisanat marseillais</p>
+              </div>
+              <div className="text-center p-4 bg-beige-100 rounded-lg">
+                <Sparkles className="w-8 h-8 text-brown-600 mx-auto mb-2" />
+                <h3 className="font-medium text-brown-900">Unique</h3>
+                <p className="text-sm text-sand-600">Pièce exclusive</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AdminPanel = ({ products, fetchProducts, adminToken }) => {
   const [editingProduct, setEditingProduct] = useState(null);
@@ -455,9 +678,11 @@ const LZLoopWebsite = ({
   adminLogin,
   adminLogout,
   fetchProducts,
-  adminToken
+  adminToken,
+  paymentStatus
 }) => {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const navigate = useNavigate();
   const [orderFormData, setOrderFormData] = useState({
     firstName: '',
     lastName: '',
@@ -502,7 +727,10 @@ const LZLoopWebsite = ({
     const totalPrice = product.price + (withCharm ? 2 : 0);
 
     return (
-      <Card className={`group cursor-pointer border-none shadow-lg hover:shadow-xl transition-all duration-300 ${isShop ? '' : 'transform hover:scale-105'} bg-white`}>
+      <Card 
+        className={`group cursor-pointer border-none shadow-lg hover:shadow-xl transition-all duration-300 ${isShop ? '' : 'transform hover:scale-105'} bg-white`}
+        onClick={() => navigate(`/product/${product.id}`)}
+      >
         <div className="aspect-square overflow-hidden rounded-t-lg">
           <img 
             src={product.image_url} 
@@ -522,7 +750,12 @@ const LZLoopWebsite = ({
                 <Checkbox 
                   id={`charm-${product.id}`}
                   checked={withCharm}
-                  onCheckedChange={setWithCharm}
+                  onCheckedChange={(checked) => {
+                    setWithCharm(checked);
+                    // Stop propagation to prevent navigation
+                    event?.stopPropagation();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                 />
                 <Label htmlFor={`charm-${product.id}`} className="flex items-center text-sm text-brown-700">
                   <Gem className="w-4 h-4 mr-1" />
@@ -543,7 +776,10 @@ const LZLoopWebsite = ({
             </div>
             {isShop ? (
               <Button 
-                onClick={() => addToCart(product.id, withCharm)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addToCart(product.id, withCharm);
+                }}
                 disabled={loading}
                 className="bg-brown-600 hover:bg-brown-700 text-white px-6 py-2"
               >
@@ -553,7 +789,10 @@ const LZLoopWebsite = ({
             ) : (
               <Button 
                 size="sm"
-                onClick={() => scrollToSection('shop')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/product/${product.id}`);
+                }}
                 className="bg-brown-600 hover:bg-brown-700 text-white"
               >
                 Voir le produit
@@ -571,6 +810,24 @@ const LZLoopWebsite = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-beige-50 to-sand-50">
+      {/* Payment Status Banner */}
+      {paymentStatus && (
+        <div className={`w-full py-4 px-4 text-center ${
+          paymentStatus.payment_status === 'paid' 
+            ? 'bg-green-100 text-green-800' 
+            : 'bg-red-100 text-red-800'
+        }`}>
+          {paymentStatus.payment_status === 'paid' ? (
+            <div className="flex items-center justify-center">
+              <Check className="w-5 h-5 mr-2" />
+              Paiement confirmé ! Merci pour votre commande.
+            </div>
+          ) : (
+            'Paiement non confirmé'
+          )}
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-beige-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1008,19 +1265,13 @@ const LZLoopWebsite = ({
                     )}
                   </div>
                   
-                  <div className="bg-amber-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-amber-800 mb-2">Informations de paiement</h4>
-                    <p className="text-sm text-amber-700">
-                      Après validation de votre commande, vous recevrez par email les informations pour effectuer le virement bancaire.
-                    </p>
-                  </div>
-                  
                   <Button 
                     type="submit" 
                     disabled={loading}
-                    className="w-full bg-brown-600 hover:bg-brown-700 text-white"
+                    className="w-full bg-brown-600 hover:bg-brown-700 text-white py-3"
                   >
-                    Confirmer la commande
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    Procéder au paiement
                   </Button>
                 </form>
               </div>
