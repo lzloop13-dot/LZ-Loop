@@ -242,8 +242,8 @@ async def admin_login(login_data: AdminLogin):
     if password_hash != ADMIN_PASSWORD_HASH:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
     
-    # Create JWT token
-    token_data = {"admin": True, "exp": datetime.now(timezone.utc).timestamp() + 86400}  # 24 hours
+    # Create JWT token (valid for 7 days)
+    token_data = {"admin": True, "exp": datetime.now(timezone.utc).timestamp() + (7 * 24 * 3600)}  # 7 days
     token = jwt.encode(token_data, SECRET_KEY, algorithm="HS256")
     
     return AdminToken(access_token=token, token_type="bearer")
