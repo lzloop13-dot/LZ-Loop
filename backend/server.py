@@ -33,7 +33,7 @@ api_router = APIRouter(prefix="/api")
 # Security
 security = HTTPBearer()
 SECRET_KEY = "lzloop_admin_secret_2024"
-ADMIN_PASSWORD_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"  # "password" hashed
+ADMIN_PASSWORD_HASH = "6641ffdd9ad32fb06d7e16b1056cb94e6b08578c02f7f94c8d72d5d0efd02845"  # "Allahuakbar123" hashed
 
 # Models
 class Product(BaseModel):
