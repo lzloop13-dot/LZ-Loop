@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -7,14 +7,12 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import jwt
 import hashlib
+from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -69,7 +67,23 @@ class Order(BaseModel):
     total: float
     shipping_zone: str  # France, Europe, International
     status: str = "pending"
+    payment_session_id: Optional[str] = None
+    payment_status: str = "pending"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PaymentTransaction(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str
+    amount: float
+    currency: str = "eur"
+    customer_email: str
+    customer_name: str
+    order_id: str
+    payment_status: str = "pending"
+    stripe_status: str = "initiated"
+    metadata: Dict[str, str] = {}
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ContactMessage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -119,6 +133,11 @@ class ContactCreate(BaseModel):
     email: EmailStr
     message: str
 
+class CheckoutRequest(BaseModel):
+    order_id: str
+    success_url: str
+    cancel_url: str
+
 # Admin Authentication
 def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
@@ -131,12 +150,18 @@ def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(secur
     except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin token")
 
-# Email sending function
+# Email sending function (improved)
 async def send_email(to_email: str, subject: str, body: str):
     try:
+        # For now, we'll just log the email. In production, configure SMTP
         logging.info(f"EMAIL TO: {to_email}")
         logging.info(f"SUBJECT: {subject}")
         logging.info(f"BODY: {body}")
+        
+        # TODO: Implement real email sending with SendGrid
+        # from emergentintegrations.email import send_email as send_real_email
+        # result = await send_real_email(to_email, subject, body)
+        
         return True
     except Exception as e:
         logging.error(f"Error sending email: {e}")
@@ -233,6 +258,11 @@ async def init_products():
         ]
         await db.products.insert_many(initial_products)
 
+# Stripe Integration
+stripe_api_key = os.environ.get('STRIPE_API_KEY')
+if not stripe_api_key:
+    logging.warning("STRIPE_API_KEY not found in environment variables")
+
 # Admin Authentication Endpoints
 @api_router.post("/admin/login", response_model=AdminToken)
 async def admin_login(login_data: AdminLogin):
@@ -284,12 +314,12 @@ async def delete_product(product_id: str):
 
 @api_router.get("/admin/orders", response_model=List[Order], dependencies=[Depends(verify_admin_token)])
 async def get_admin_orders():
-    orders = await db.orders.find().to_list(1000)
+    orders = await db.orders.find().sort("created_at", -1).to_list(1000)
     return [Order(**order) for order in orders]
 
 @api_router.get("/admin/contacts", response_model=List[ContactMessage], dependencies=[Depends(verify_admin_token)])
 async def get_admin_contacts():
-    contacts = await db.contact_messages.find().to_list(1000)
+    contacts = await db.contact_messages.find().sort("created_at", -1).to_list(1000)
     return [ContactMessage(**contact) for contact in contacts]
 
 # Public Product endpoints
@@ -376,68 +406,223 @@ async def create_order(order_data: OrderCreate):
     )
     
     await db.orders.insert_one(order.dict())
-    
-    # Send confirmation emails
-    customer_subject = "Confirmation de votre commande LZ Loop"
-    
-    items_text = ""
-    for item in order.items:
-        charm_text = " + Charme" if item.with_charm else ""
-        items_text += f"- {item.product_name}{charm_text} x{item.quantity} ({item.total_price:.2f}€)\n"
-    
-    customer_body = f"""
-    Bonjour {order.customer_name},
-    
-    Merci pour votre commande chez LZ Loop.
-    
-    Récapitulatif de votre commande:
-    - Numéro de commande: {order.id}
-    
-    Produits commandés:
-    {items_text}
-    
-    - Sous-total: {subtotal:.2f}€
-    - Frais de livraison: {shipping_cost:.2f}€
-    - Total: {total:.2f}€
-    
-    Votre commande sera préparée avec soin et expédiée sous 2 à 3 jours ouvrés.
-    
-    Pour le paiement, veuillez effectuer un virement sur:
-    RIB: [Votre RIB sera ajouté ici]
-    
-    Référence de paiement: {order.id}
-    
-    Merci de votre confiance.
-    L'équipe LZ Loop
-    """
-    
-    vendor_subject = f"Nouvelle commande - {order.id}"
-    vendor_body = f"""
-    Nouvelle commande reçue:
-    
-    Client: {order.customer_name}
-    Email: {order.customer_email}
-    Téléphone: {order.customer_phone}
-    Adresse: {order.shipping_address}
-    Zone: {order.shipping_zone}
-    
-    Total: {total:.2f}€
-    
-    Produits commandés:
-    {items_text}
-    """
-    
-    await send_email(order.customer_email, customer_subject, customer_body)
-    await send_email("lzloop13@gmail.com", vendor_subject, vendor_body)
-    
-    await db.cart_items.delete_many({})
-    
     return order
 
 @api_router.get("/orders", response_model=List[Order])
 async def get_orders():
     orders = await db.orders.find().to_list(1000)
     return [Order(**order) for order in orders]
+
+# Payment endpoints
+@api_router.post("/payments/checkout")
+async def create_checkout_session(request: CheckoutRequest, http_request: Request):
+    try:
+        if not stripe_api_key:
+            raise HTTPException(status_code=500, detail="Stripe not configured")
+        
+        # Get order
+        order = await db.orders.find_one({"id": request.order_id})
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        # Initialize Stripe checkout
+        host_url = str(http_request.base_url).rstrip('/')
+        webhook_url = f"{host_url}/api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=stripe_api_key, webhook_url=webhook_url)
+        
+        # Create checkout request
+        checkout_request = CheckoutSessionRequest(
+            amount=float(order["total"]),
+            currency="eur",
+            success_url=request.success_url,
+            cancel_url=request.cancel_url,
+            metadata={
+                "order_id": order["id"],
+                "customer_email": order["customer_email"],
+                "customer_name": order["customer_name"]
+            }
+        )
+        
+        # Create session
+        session = await stripe_checkout.create_checkout_session(checkout_request)
+        
+        # Create payment transaction record
+        payment_transaction = PaymentTransaction(
+            session_id=session.session_id,
+            amount=float(order["total"]),
+            currency="eur",
+            customer_email=order["customer_email"],
+            customer_name=order["customer_name"],
+            order_id=order["id"],
+            metadata=checkout_request.metadata or {}
+        )
+        
+        await db.payment_transactions.insert_one(payment_transaction.dict())
+        
+        # Update order with session ID
+        await db.orders.update_one(
+            {"id": request.order_id},
+            {"$set": {"payment_session_id": session.session_id}}
+        )
+        
+        return {"checkout_url": session.url, "session_id": session.session_id}
+        
+    except Exception as e:
+        logging.error(f"Error creating checkout session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/payments/status/{session_id}")
+async def get_payment_status(session_id: str):
+    try:
+        if not stripe_api_key:
+            raise HTTPException(status_code=500, detail="Stripe not configured")
+        
+        # Get payment transaction
+        transaction = await db.payment_transactions.find_one({"session_id": session_id})
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        # Check Stripe status
+        host_url = "https://dummy-webhook-url.com"  # Placeholder
+        webhook_url = f"{host_url}/api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=stripe_api_key, webhook_url=webhook_url)
+        
+        status_response = await stripe_checkout.get_checkout_status(session_id)
+        
+        # Update transaction status
+        update_data = {
+            "stripe_status": status_response.status,
+            "payment_status": status_response.payment_status,
+            "updated_at": datetime.now(timezone.utc)
+        }
+        
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": update_data}
+        )
+        
+        # If payment is successful, update order and send emails
+        if status_response.payment_status == "paid" and transaction["payment_status"] != "paid":
+            # Update order status
+            await db.orders.update_one(
+                {"id": transaction["order_id"]},
+                {"$set": {"status": "paid", "payment_status": "paid"}}
+            )
+            
+            # Send confirmation emails
+            order = await db.orders.find_one({"id": transaction["order_id"]})
+            if order:
+                await send_confirmation_emails(order)
+        
+        return {
+            "status": status_response.status,
+            "payment_status": status_response.payment_status,
+            "amount_total": status_response.amount_total,
+            "currency": status_response.currency
+        }
+        
+    except Exception as e:
+        logging.error(f"Error checking payment status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    try:
+        body = await request.body()
+        signature = request.headers.get("Stripe-Signature")
+        
+        if not stripe_api_key:
+            raise HTTPException(status_code=500, detail="Stripe not configured")
+        
+        host_url = str(request.base_url).rstrip('/')
+        webhook_url = f"{host_url}/api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=stripe_api_key, webhook_url=webhook_url)
+        
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+        
+        if webhook_response.event_type == "checkout.session.completed":
+            # Update payment transaction
+            await db.payment_transactions.update_one(
+                {"session_id": webhook_response.session_id},
+                {"$set": {
+                    "payment_status": webhook_response.payment_status,
+                    "updated_at": datetime.now(timezone.utc)
+                }}
+            )
+            
+            # Update order
+            order_id = webhook_response.metadata.get("order_id")
+            if order_id:
+                await db.orders.update_one(
+                    {"id": order_id},
+                    {"$set": {"status": "paid", "payment_status": "paid"}}
+                )
+                
+                # Send confirmation emails
+                order = await db.orders.find_one({"id": order_id})
+                if order:
+                    await send_confirmation_emails(order)
+        
+        return {"status": "success"}
+        
+    except Exception as e:
+        logging.error(f"Error handling webhook: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def send_confirmation_emails(order):
+    """Send confirmation emails to customer and vendor"""
+    try:
+        # Customer confirmation email
+        customer_subject = "Confirmation de votre commande LZ Loop"
+        
+        items_text = ""
+        for item in order["items"]:
+            charm_text = " + Charme" if item.get("with_charm") else ""
+            items_text += f"- {item['product_name']}{charm_text} x{item['quantity']} ({item['total_price']:.2f}€)\n"
+        
+        customer_body = f"""
+        Bonjour {order['customer_name']},
+        
+        Merci pour votre commande chez LZ Loop. Votre paiement a été confirmé.
+        
+        Récapitulatif de votre commande:
+        - Numéro de commande: {order['id']}
+        
+        Produits commandés:
+        {items_text}
+        
+        - Sous-total: {order['subtotal']:.2f}€
+        - Frais de livraison: {order['shipping_cost']:.2f}€
+        - Total: {order['total']:.2f}€
+        
+        Votre commande sera préparée avec soin et expédiée sous 2 à 3 jours ouvrés.
+        
+        Merci de votre confiance.
+        L'équipe LZ Loop
+        """
+        
+        # Vendor notification email
+        vendor_subject = f"Nouvelle commande payée - {order['id']}"
+        vendor_body = f"""
+        Nouvelle commande payée reçue:
+        
+        Client: {order['customer_name']}
+        Email: {order['customer_email']}
+        Téléphone: {order['customer_phone']}
+        Adresse: {order['shipping_address']}
+        Zone: {order['shipping_zone']}
+        
+        Total payé: {order['total']:.2f}€
+        
+        Produits commandés:
+        {items_text}
+        """
+        
+        await send_email(order['customer_email'], customer_subject, customer_body)
+        await send_email("lzloop13@gmail.com", vendor_subject, vendor_body)
+        
+    except Exception as e:
+        logging.error(f"Error sending confirmation emails: {e}")
 
 # Contact endpoint
 @api_router.post("/contact", response_model=ContactMessage)
