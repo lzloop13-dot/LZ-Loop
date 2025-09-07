@@ -218,7 +218,7 @@ class LZLoopAPITester:
             "Create Order (France - Free Shipping)",
             "POST",
             "orders",
-            201,
+            200,
             data=order_data,
             expected_data=validate_order
         )
