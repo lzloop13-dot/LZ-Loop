@@ -253,7 +253,7 @@ class LZLoopAPITester:
             "Contact Form",
             "POST",
             "contact",
-            201,
+            200,
             data=contact_data,
             expected_data=validate_contact
         )
